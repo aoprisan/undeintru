@@ -20,33 +20,39 @@
  *
  * ## The model
  *
- * Per subject, the exam mark is modelled through a latent ability on the
- * exam scale:
+ * The centre of it is {@link EVNAT_CALIBRATION}: the exam mark actually
+ * scored, on average, by candidates whose gimnaziu record sat at each level —
+ * measured on the 143,183 candidates in the published Evaluarea Națională
+ * 2025 results, together with the spread around that average. A prediction
+ * starts as a recency-weighted summary of the school medii a parent has, read
+ * off that table.
  *
- *     school[y]   = inv(ability[y]) + yearly noise        (catalog is a noisy,
- *                                                          inflated reading)
- *     ability[y+1] = ability[y] + drift                   (kids change)
- *     exam        = ability[8] + exam-day noise
+ * Three things are then layered on, in variance:
  *
- * `inv` is the inverse of a linear calibration `exam = intercept + slope *
- * school`. The slope is above 1 and the intercept negative: school grades run
- * higher than exam marks, and the gap widens as the school media drops — a
- * school 10 loses half a point at the exam, a school 7 in matematică loses
- * far more. The calibration constants are **priors, not measurements** (see
- * {@link ROMANA_PRIOR}); they are re-estimable from real data the moment the
- * pipeline can fetch it.
+ * - **record incompleteness** — the table is indexed by a full V–VIII
+ *   average, so a parent holding fewer years has a noisier summary of the
+ *   same kid and is owed a wider answer;
+ * - **drift** — a kid who has not reached grade 8 will change before they sit
+ *   the exam, and every remaining year widens the interval;
+ * - **exam day** — the part of the measured spread that no earlier reading
+ *   can ever remove.
  *
- * The school years are combined with recency weights (last year counts
- * double the one before), and the predictive spread is derived from the
- * structure rather than guessed per grade: yearly catalog noise shrinks with
- * more observed years, drift variance grows with every year between the last
- * observed media and the grade-8 exam, and exam-day noise never shrinks.
- * That is why a prediction for a 5th grader is honest about being much
- * vaguer than one for an 8th grader with a simulare in hand.
+ * That is why a prediction for a 5th grader is honest about being much vaguer
+ * than one for an 8th grader with a simulare in hand.
  *
  * The simulare, when present, is a second, independent reading of the same
- * ability — combined precision-weighted, with a documented uplift because
- * real exam marks land above the simulare on average.
+ * kid — combined precision-weighted against the reducible part of the spread
+ * only, with a documented uplift because real exam marks land above the
+ * simulare on average.
+ *
+ * ## What it scores, against real candidates
+ *
+ * Calibrated on 2025 and tested on the 134,430 usable candidates of the
+ * **2026** results — a different year, so genuinely out of sample — it lands
+ * a mean error of +0.24 with 80% intervals covering 80.8%. Reading the
+ * catalog at face value is off by 2.22. The version this replaced, whose
+ * calibration was a pair of guessed lines, was off by +1.19 with its "80%"
+ * intervals covering 43%. Full measurements in `docs/MARKS.md`.
  *
  * ## What this model does not do
  *
@@ -97,51 +103,194 @@ export class MarksError extends Error {
   }
 }
 
-// --- priors -----------------------------------------------------------------
+// --- calibration: measured where it could be, prior where it could not ------
 
 /**
- * Per-subject calibration and noise, all on documented priors.
+ * The school→exam calibration. **Measured**, not assumed.
  *
- * - `slope`/`intercept`: the school→exam line. Anchors: a school 10 lands
- *   near 9.5–9.6 at the exam; the national exam average sits one to two
- *   points below the school average, with matematică the harsher of the two.
- * - `yearSd`: how far one yearly catalog media strays from what the kid's
- *   ability implies, on the school scale.
- * - `examSd`: exam-day spread — subject choice, form, nerves.
+ * Every knot is the average exam mark actually scored by candidates whose
+ * gimnaziu average sat at that value, in the published Evaluarea Națională
+ * 2025 results: 143,183 candidates, the ones present at both common papers
+ * with a school average on file and not sitting a *limba maternă* paper.
+ * Source and method: `pipeline/src/evnat/calibrate.ts`, regenerate with
+ * `just evnat-calibrate`.
  *
- * None of these has met real data. They are deliberately conservative
- * guesses; the real datasets (which pair each candidate's school record with
- * their exam marks) are what should replace them.
+ * This table replaced a pair of straight lines that had never met data. The
+ * lines were optimistic by roughly a point — they put a school-8.0 kid at
+ * 7.30 in română where the real average is 5.68 — and optimistic is the
+ * dangerous direction here: it is the direction that tells a parent their kid
+ * clears a cutoff they do not.
+ *
+ * ## Why a table
+ *
+ * Română is near-linear in the school average, but matematică is not: flat at
+ * the bottom, steep at the top. A quadratic fits it better than a line and
+ * then turns back **upward** below 7, predicting more for a school 5 than for
+ * a school 7. Rather than pick a curve that misbehaves exactly where a worried
+ * parent is looking, the estimator interpolates the measured means and clamps
+ * outside the range they cover.
+ *
+ * ## The one link still unmeasured
+ *
+ * The published file records `MEDIA V-VIII`, the gimnaziu average **over all
+ * subjects** — one number per candidate. It does not record per-subject school
+ * medii. So the knots below are indexed by a kid's *overall* average, while
+ * this model is handed their *română* and *matematică* medii separately.
+ *
+ * Applying the table to a per-subject media therefore assumes that media
+ * tracks the kid's overall average. That assumption is this model's last
+ * unmeasured joint, and it is stated rather than buried: for a kid whose
+ * subject medii are lopsided — strong in one, weak in the other — the two
+ * subject predictions will be further apart than the data behind this table
+ * can vouch for. Closing it needs a source pairing per-subject school medii
+ * with exam marks, which no published dataset currently is.
  */
-export interface SubjectPrior {
-  readonly slope: number;
-  readonly intercept: number;
-  readonly yearSd: number;
-  readonly examSd: number;
+export interface CalibrationKnot {
+  /** Gimnaziu average V–VIII. */
+  readonly schoolMedia: number;
+  readonly romana: number;
+  readonly romanaSd: number;
+  readonly matematica: number;
+  readonly matematicaSd: number;
 }
 
-export const ROMANA_PRIOR: SubjectPrior = {
-  slope: 1.15,
-  intercept: -1.9,
-  yearSd: 0.45,
-  examSd: 0.5,
+export const EVNAT_CALIBRATION_YEAR = 2025;
+export const EVNAT_CALIBRATION_COUNT = 143_183;
+
+export const EVNAT_CALIBRATION: readonly CalibrationKnot[] = [
+  { schoolMedia: 6.0, romana: 2.396, romanaSd: 0.943, matematica: 3.091, matematicaSd: 1.245 },
+  { schoolMedia: 6.25, romana: 2.643, romanaSd: 1.013, matematica: 3.171, matematicaSd: 1.205 },
+  { schoolMedia: 6.5, romana: 3.043, romanaSd: 1.104, matematica: 3.463, matematicaSd: 1.186 },
+  { schoolMedia: 6.75, romana: 3.371, romanaSd: 1.144, matematica: 3.58, matematicaSd: 1.238 },
+  { schoolMedia: 7.0, romana: 3.883, romanaSd: 1.248, matematica: 3.844, matematicaSd: 1.277 },
+  { schoolMedia: 7.25, romana: 4.352, romanaSd: 1.259, matematica: 4.058, matematicaSd: 1.281 },
+  { schoolMedia: 7.5, romana: 4.778, romanaSd: 1.283, matematica: 4.24, matematicaSd: 1.293 },
+  { schoolMedia: 7.75, romana: 5.254, romanaSd: 1.262, matematica: 4.488, matematicaSd: 1.331 },
+  { schoolMedia: 8.0, romana: 5.68, romanaSd: 1.229, matematica: 4.761, matematicaSd: 1.351 },
+  { schoolMedia: 8.25, romana: 6.151, romanaSd: 1.202, matematica: 5.1, matematicaSd: 1.408 },
+  { schoolMedia: 8.5, romana: 6.589, romanaSd: 1.167, matematica: 5.452, matematicaSd: 1.438 },
+  { schoolMedia: 8.75, romana: 7.063, romanaSd: 1.094, matematica: 5.895, matematicaSd: 1.455 },
+  { schoolMedia: 9.0, romana: 7.491, romanaSd: 1.033, matematica: 6.375, matematicaSd: 1.461 },
+  { schoolMedia: 9.25, romana: 7.925, romanaSd: 0.94, matematica: 6.918, matematicaSd: 1.42 },
+  { schoolMedia: 9.5, romana: 8.361, romanaSd: 0.821, matematica: 7.539, matematicaSd: 1.322 },
+  { schoolMedia: 9.75, romana: 8.815, romanaSd: 0.699, matematica: 8.253, matematicaSd: 1.148 },
+  { schoolMedia: 10.0, romana: 9.279, romanaSd: 0.515, matematica: 9.035, matematicaSd: 0.82 },
+];
+
+type KnotField = keyof Omit<CalibrationKnot, 'schoolMedia'>;
+
+/**
+ * Read the measured table at an arbitrary school media.
+ *
+ * Linear between knots, flat outside them. Clamping rather than extrapolating
+ * is deliberate: below the lowest knot the published data thins to a few dozen
+ * candidates, and a line drawn through that tail runs to a negative mark.
+ */
+export function calibratedValue(schoolMedia: number, field: KnotField): number {
+  const first = EVNAT_CALIBRATION[0];
+  const last = EVNAT_CALIBRATION[EVNAT_CALIBRATION.length - 1];
+  if (!first || !last) throw new MarksError('the calibration table is empty');
+  if (schoolMedia <= first.schoolMedia) return first[field];
+  if (schoolMedia >= last.schoolMedia) return last[field];
+  for (let i = 1; i < EVNAT_CALIBRATION.length; i += 1) {
+    const hi = EVNAT_CALIBRATION[i];
+    const lo = EVNAT_CALIBRATION[i - 1];
+    if (!hi || !lo) continue;
+    if (schoolMedia <= hi.schoolMedia) {
+      const t = (schoolMedia - lo.schoolMedia) / (hi.schoolMedia - lo.schoolMedia);
+      return lo[field] + t * (hi[field] - lo[field]);
+    }
+  }
+  return last[field];
+}
+
+const MEAN_FIELD: Readonly<Record<Subject, KnotField>> = {
+  romana: 'romana',
+  matematica: 'matematica',
+};
+const SD_FIELD: Readonly<Record<Subject, KnotField>> = {
+  romana: 'romanaSd',
+  matematica: 'matematicaSd',
 };
 
-export const MATEMATICA_PRIOR: SubjectPrior = {
-  slope: 1.45,
-  intercept: -5.0,
-  yearSd: 0.5,
-  examSd: 0.55,
-};
+/** Average exam mark for a kid with this school record, per the 2025 results. */
+export function calibratedMean(subject: Subject, schoolMedia: number): number {
+  return calibratedValue(schoolMedia, MEAN_FIELD[subject]);
+}
 
-/** Year-over-year spread of a kid's ability, in exam points per year. */
+/**
+ * Spread of the exam mark around that average — also measured.
+ *
+ * This is the whole conditional spread at grade 8, not just exam-day nerves:
+ * it already contains everything that makes two kids with the same school
+ * record score differently. It is far wider than the 0.5 the old prior
+ * assumed, which is why that model's "80%" intervals covered 43% of real
+ * candidates. It also varies with the record — 0.52 in română for a straight-
+ * 10 kid, 1.28 mid-scale — so it is read from the table rather than fixed.
+ */
+export function calibratedSd(subject: Subject, schoolMedia: number): number {
+  return calibratedValue(schoolMedia, SD_FIELD[subject]);
+}
+
+/**
+ * Local slope of the calibration, in exam points per school point.
+ *
+ * Measured — it is the gradient of the table — and used to carry school-scale
+ * quantities onto the exam scale where the rest of the arithmetic lives.
+ */
+export function calibratedSlope(subject: Subject, schoolMedia: number): number {
+  const h = 0.125;
+  const lo = Math.max(schoolMedia - h, 1);
+  const hi = Math.min(schoolMedia + h, 10);
+  if (hi <= lo) return 0;
+  return (calibratedMean(subject, hi) - calibratedMean(subject, lo)) / (hi - lo);
+}
+
+/** Year-over-year spread of a kid's ability, in exam points per year. Prior. */
 export const DRIFT_SD = 0.25;
 
 /**
- * Correlation between the two subjects' prediction errors. A kid having a
- * good or bad exam day tends to have it in both rooms.
+ * How much of the measured conditional spread is exam day, and so irreducible.
+ *
+ * The measured spread lumps together two things the model has to tell apart:
+ * how little we know about the kid, and how much a given kid's mark moves on
+ * the day. Only the first shrinks when a second reading — a simulare — comes
+ * in. Treating the whole spread as reducible would let a simulare promise a
+ * precision no simulare can deliver.
+ *
+ * The split is **not** measurable from the published file, which records one
+ * exam per candidate and no simulare. This is a prior, and it is the reason a
+ * simulare helps here by a bounded amount rather than collapsing the interval.
  */
-export const SUBJECT_RHO = 0.35;
+export const EXAM_DAY_SHARE = 0.45;
+
+/**
+ * Yearly catalog noise, school scale. Prior.
+ *
+ * How far one year's entry in the catalog strays from the kid's real level.
+ * Not measurable from the published file either: it carries `MEDIA V-VIII`,
+ * one already-averaged number per candidate, never the four it averages.
+ */
+export const CATALOG_YEAR_SD = 0.3;
+
+/**
+ * Years of school record the measured table is built on.
+ *
+ * `MEDIA V-VIII` is itself an average over grades V–VIII, so the table's
+ * spread is the spread for a kid whose record is *complete*. A parent holding
+ * fewer years than that has a noisier summary of the same kid, and the model
+ * owes them a wider answer — see {@link recordIncompletenessVar}.
+ */
+export const RECORD_YEARS = 4;
+
+/**
+ * Correlation between the two subjects' prediction errors — **measured**:
+ * the correlation of română and matematică residuals about the table above,
+ * over the same 143,183 candidates. A kid having a good or bad exam day tends
+ * to have it in both rooms, and the data agrees more strongly than the 0.35
+ * this was guessed at.
+ */
+export const SUBJECT_RHO = 0.443;
 
 /**
  * Real exam marks land above the simulare on average — the simulare is graded
@@ -229,10 +378,34 @@ interface SubjectResult {
   readonly rawMean: number;
 }
 
+/**
+ * Extra variance from holding fewer school years than the table assumes.
+ *
+ * The table's x-axis is an average of four yearly readings, so its spread
+ * already contains the noise of a four-year average: `c^2 / 4` for yearly
+ * catalog noise `c`. A weighted summary of the years a parent actually has
+ * carries `c^2 * sum(w^2) / (sum w)^2` instead. The difference is what this
+ * model owes on top — zero for a flat four-year record, largest for a single
+ * year, and in between for a recency-weighted one.
+ *
+ * Carried onto the exam scale by the local slope, since `c` is a school-scale
+ * quantity and everything else here is in exam points.
+ */
+function recordIncompletenessVar(
+  subject: Subject,
+  schoolMedia: number,
+  weights: readonly number[],
+  total: number,
+): number {
+  const sumSq = weights.reduce((a, w) => a + w * w, 0);
+  const excess = sumSq / (total * total) - 1 / RECORD_YEARS;
+  if (excess <= 0) return 0;
+  return (calibratedSlope(subject, schoolMedia) * CATALOG_YEAR_SD) ** 2 * excess;
+}
+
 function estimateSubject(
   subject: Subject,
   entries: readonly YearlyMedia[],
-  prior: SubjectPrior,
   simulareMark: number | undefined,
 ): SubjectResult {
   const sorted = [...entries].sort((a, b) => a.grade - b.grade);
@@ -246,10 +419,6 @@ function estimateSubject(
   const schoolMedia =
     sorted.reduce((acc, e, i) => acc + e.media * (weights[i] ?? 0), 0) / total;
 
-  // Catalog noise: a weighted mean of independent yearly readings has
-  // spread yearSd * sqrt(sum w^2) / sum w — more observed years, less noise.
-  const sumSq = weights.reduce((a, w) => a + w * w, 0);
-  const yearVar = (prior.slope * prior.yearSd) ** 2 * (sumSq / (total * total));
 
   /*
    * Drift: each school media reads the kid's ability in *that* year, and the
@@ -269,9 +438,29 @@ function estimateSubject(
     driftVar += (DRIFT_SD * (behind / total)) ** 2;
   }
 
-  // Ability estimate from the school record alone.
-  let abilityMean = prior.intercept + prior.slope * schoolMedia;
-  let abilityVar = yearVar + driftVar;
+  /*
+   * Estimate from the school record alone, read straight off the measured
+   * table.
+   *
+   * The measured spread is the whole conditional spread for a kid with a
+   * *complete* V–VIII record, since that is what `MEDIA V-VIII` is. Two
+   * corrections sit on top of it, and one split runs through it:
+   *
+   * - a record shorter than four years summarizes the kid more noisily, so
+   *   {@link recordIncompletenessVar} widens the answer (and a full record
+   *   adds nothing);
+   * - a kid who has not reached grade 8 will drift before they sit the exam;
+   * - of what remains, only the part that is not exam-day noise can ever be
+   *   sharpened by a second reading.
+   */
+  const measuredVar = calibratedSd(subject, schoolMedia) ** 2;
+  const examDayVar = EXAM_DAY_SHARE * measuredVar;
+
+  let abilityMean = calibratedMean(subject, schoolMedia);
+  let abilityVar =
+    (1 - EXAM_DAY_SHARE) * measuredVar +
+    driftVar +
+    recordIncompletenessVar(subject, schoolMedia, weights, total);
   let basis: SubjectEstimate['basis'] = 'school';
 
   if (simulareMark !== undefined) {
@@ -285,7 +474,7 @@ function estimateSubject(
     basis = 'school+simulare';
   }
 
-  const sd = Math.sqrt(abilityVar + prior.examSd ** 2);
+  const sd = Math.sqrt(abilityVar + examDayVar);
   const rawMean = abilityMean;
 
   return {
@@ -329,13 +518,8 @@ export function predictMarks(record: StudentRecord): MarksPrediction {
   if (simulare?.romana !== undefined) assertMark(simulare.romana, 'simulare romana');
   if (simulare?.matematica !== undefined) assertMark(simulare.matematica, 'simulare matematica');
 
-  const romana = estimateSubject('romana', record.romana, ROMANA_PRIOR, simulare?.romana);
-  const matematica = estimateSubject(
-    'matematica',
-    record.matematica,
-    MATEMATICA_PRIOR,
-    simulare?.matematica,
-  );
+  const romana = estimateSubject('romana', record.romana, simulare?.romana);
+  const matematica = estimateSubject('matematica', record.matematica, simulare?.matematica);
 
   // media = (romana + matematica) / 2, with the subject errors correlated:
   // var = (sd_r^2 + sd_m^2 + 2 rho sd_r sd_m) / 4.

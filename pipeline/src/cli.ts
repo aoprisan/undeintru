@@ -4,6 +4,7 @@
  */
 
 import { crawl } from './crawl.js';
+import { calibrate, CALIBRATION_YEAR, sample, verify } from './evnat/index.js';
 import { DEFAULT_MOCK_SEED, DEFAULT_MOCK_YEARS, writeMock } from './mock/index.js';
 import { emit } from './emit.js';
 import { normalize } from './normalize.js';
@@ -26,6 +27,12 @@ const USAGE = `undeintru pipeline
              Write SYNTHETIC normalized data, for exercising the pipeline and
              the prediction model while the real source is unreachable. Every
              row it writes is stamped provenance: synthetic.
+
+  evnat      verify|calibrate|sample [--year <year>]
+             Real Evaluarea Națională results from data.gov.ro. Network-only.
+               verify     recompute every published media and compare
+               calibrate  fit the school-record -> exam-mark table
+               sample     regenerate the committed fixtures
 `;
 
 interface Flags {
@@ -114,6 +121,27 @@ async function main(argv: readonly string[]): Promise<void> {
         seed: typeof rawSeed === 'string' ? Number(rawSeed) : DEFAULT_MOCK_SEED,
       });
       return;
+    }
+    case 'evnat': {
+      const action = flags.positional[1];
+      const raw = flags.options.get('year');
+      const year = typeof raw === 'string' ? Number(raw) : CALIBRATION_YEAR;
+      if (!Number.isInteger(year)) throw new Error(`--year must be an integer, got ${String(raw)}`);
+      switch (action) {
+        case 'verify':
+          await verify(year);
+          return;
+        case 'calibrate':
+          await calibrate(year);
+          return;
+        case 'sample':
+          await sample();
+          return;
+        default:
+          throw new Error(
+            `evnat: expected verify, calibrate or sample, got ${action ?? '(nothing)'}`,
+          );
+      }
     }
     default: {
       process.stdout.write(USAGE);

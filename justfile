@@ -40,6 +40,21 @@ mock county="SB":
 emit:
     npm run --workspace pipeline --silent cli -- emit
 
+# --- real exam results (data.gov.ro) ---------------------------------------
+# Network-only, like `fetch`; never run by tests or CI.
+
+# Recompute every published media for a year and compare with the ministry's.
+evnat-verify year="2025":
+    npm run --workspace pipeline --silent cli -- evnat verify --year {{year}}
+
+# Fit the school-record -> exam-mark calibration and print it as TypeScript.
+evnat-calibrate year="2025":
+    npm run --workspace pipeline --silent cli -- evnat calibrate --year {{year}}
+
+# Regenerate the committed fixtures under pipeline/fixtures/evnat/.
+evnat-sample:
+    npm run --workspace pipeline --silent cli -- evnat sample
+
 # --- quality ---------------------------------------------------------------
 
 typecheck:

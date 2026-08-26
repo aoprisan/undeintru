@@ -1,19 +1,32 @@
 /**
  * "Media de admitere" arithmetic.
  *
- * Since 2023 the admission media is the plain average of the two Evaluarea
+ * Since 2023 the admission media is the plain average of the Evaluarea
  * Națională grades:
  *
- *     media = (romana + matematica) / 2
+ *     media = (romana + matematica) / 2                    (most candidates)
+ *     media = (romana + limba maternă + matematica) / 3    (minority-language)
  *
  * kept to two decimals and **truncated, not rounded**: 9.855 becomes 9.85, not
  * 9.86. Rounding here is not a cosmetic difference — it moves a candidate
  * across a cutoff and changes which schools the app says they can enter.
  *
- * Both grades carry at most two decimals, so everything is computed in integer
- * hundredths. Doing it in floating point is wrong in a way that is easy to
- * miss: `9.86 * 100` is `985.9999999999999` in IEEE-754, and flooring that
- * silently yields 9.85 for a value that should have stayed 9.86.
+ * The three-subject form is not a footnote. Candidates schooled in a minority
+ * language sit a third written paper, *Limba și literatura maternă*, and it
+ * enters the media on equal footing. In the 2025 national results it is
+ * 9,024 of the 152,644 candidates who sat both common papers — 5.9% overall,
+ * and the majority in Harghita and Covasna. Averaging only two grades for
+ * them yields a different number, so it is a wrong answer for a whole county,
+ * not a rounding quibble.
+ *
+ * Every grade carries at most two decimals, so everything is computed in
+ * integer hundredths. Doing it in floating point is wrong in a way that is
+ * easy to miss: `9.86 * 100` is `985.9999999999999` in IEEE-754, and flooring
+ * that silently yields 9.85 for a value that should have stayed 9.86.
+ *
+ * Both branches are checked against the published 2025 national results:
+ * every one of the 152,644 rows reproduces exactly, the three-subject rows
+ * only under the three-subject form. See `pipeline/test/media.test.ts`.
  */
 
 /** Romanian grades run 1..10. */
@@ -43,16 +56,33 @@ function gradeToHundredths(grade: number, what: string): number {
 }
 
 /**
- * Media de admitere from the two Evaluarea Națională grades, 2023 formula.
+ * Media de admitere from the Evaluarea Națională grades, 2023 formula.
  * Two decimals, truncated toward zero.
  *
+ * Pass `limbaMaterna` for a candidate who sat the minority-language paper:
+ * the media is then the mean of all three grades. Omit it — or pass
+ * `undefined`/`null` — for the common two-subject case. The distinction is
+ * carried by the argument rather than a flag so that a caller cannot claim a
+ * three-subject candidate and then fail to supply the grade.
+ *
  * @example computeMediaAdmitere(9.90, 9.81) // 9.85 — the exact value is 9.855
+ * @example computeMediaAdmitere(5.70, 3.10, 9.05) // 5.95 — exactly 5.95
  */
-export function computeMediaAdmitere(romana: number, matematica: number): number {
-  const sum = gradeToHundredths(romana, 'romana') + gradeToHundredths(matematica, 'matematica');
-  // sum is in hundredths; halving may land on a half-hundredth, which is
-  // exactly the 9.855 case. Floor gives the truncation the rules require.
-  return Math.floor(sum / 2) / 100;
+export function computeMediaAdmitere(
+  romana: number,
+  matematica: number,
+  limbaMaterna?: number | null,
+): number {
+  const romanaH = gradeToHundredths(romana, 'romana');
+  const matematicaH = gradeToHundredths(matematica, 'matematica');
+
+  // Both branches floor in integer hundredths: halving or thirding may land
+  // between hundredths — exactly the 9.855 case — and the rules truncate.
+  if (limbaMaterna === undefined || limbaMaterna === null) {
+    return Math.floor((romanaH + matematicaH) / 2) / 100;
+  }
+  const maternaH = gradeToHundredths(limbaMaterna, 'limba materna');
+  return Math.floor((romanaH + maternaH + matematicaH) / 3) / 100;
 }
 
 /**

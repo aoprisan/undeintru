@@ -52,6 +52,49 @@ describe('computeMediaAdmitere — (romana + matematica) / 2, truncated', () => 
     }
   });
 
+  it('averages three grades for a candidate who sat limba materna', () => {
+    // Real rows from the published 2025 results. Under the two-subject rule
+    // each of these comes out somewhere else entirely.
+    expect(computeMediaAdmitere(5.7, 3.1, 9.05)).toBe(5.95);
+    expect(computeMediaAdmitere(1.65, 3.55, 3.55)).toBe(2.91);
+    expect(computeMediaAdmitere(4.55, 4, 3.75)).toBe(4.1);
+    expect(computeMediaAdmitere(1.3, 2, 2.55)).toBe(1.95);
+  });
+
+  it('truncates the three-subject mean too, never rounding up', () => {
+    // 9.99 + 9.99 + 9.98 = 29.96; a third is 9.98666..., which is 9.98.
+    expect(computeMediaAdmitere(9.99, 9.98, 9.99)).toBe(9.98);
+    // Two thirds of a hundredth up, still truncated down.
+    expect(computeMediaAdmitere(7, 7, 7.02)).toBe(7);
+    expect(computeMediaAdmitere(7, 7, 7.01)).toBe(7);
+  });
+
+  it('agrees with exact decimal arithmetic across the three-subject range', () => {
+    for (let r = 100; r <= 1000; r += 37) {
+      for (let l = 100; l <= 1000; l += 41) {
+        for (let m = 100; m <= 1000; m += 43) {
+          const expected = Math.floor((r + l + m) / 3) / 100;
+          expect(computeMediaAdmitere(r / 100, m / 100, l / 100)).toBe(expected);
+        }
+      }
+    }
+  });
+
+  it('treats an absent limba materna the same however it is spelled', () => {
+    // A candidate who did not sit the paper may arrive as undefined or null;
+    // both must take the two-subject branch rather than coercing to a zero.
+    expect(computeMediaAdmitere(9.9, 9.81, undefined)).toBe(9.85);
+    expect(computeMediaAdmitere(9.9, 9.81, null)).toBe(9.85);
+    expect(computeMediaAdmitere(9.9, 9.81)).toBe(9.85);
+  });
+
+  it('validates the limba materna grade like the other two', () => {
+    expect(() => computeMediaAdmitere(9, 9, 10.5)).toThrow(MediaError);
+    expect(() => computeMediaAdmitere(9, 9, 0.5)).toThrow(MediaError);
+    expect(() => computeMediaAdmitere(9, 9, 9.855)).toThrow(/more than two decimals/);
+    expect(() => computeMediaAdmitere(9, 9, Number.NaN)).toThrow(/limba materna/);
+  });
+
   it('rejects grades outside 1..10 and grades with too many decimals', () => {
     expect(() => computeMediaAdmitere(10.5, 9)).toThrow(MediaError);
     expect(() => computeMediaAdmitere(0.5, 9)).toThrow(MediaError);
