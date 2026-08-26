@@ -183,6 +183,21 @@ already-downloaded pages served from `pipeline/raw/`.
 Node's built-in `fetch` ignores `HTTPS_PROXY`. The downloader dispatches through
 undici's `EnvHttpProxyAgent` so it works behind a proxy.
 
+## Shipping a change to people who already have the app
+
+The service worker precaches the whole app — that is what makes it work offline,
+and also what hides a new deploy: a returning visitor is served the previous
+build from cache while the new worker installs behind it. Workbox takes over as
+soon as it is ready (`skipWaiting`, `clientsClaim`), but taking over does not
+re-render a page that was already built from the old cache, so **one reload
+after a deploy still shows the old app**.
+
+`app/src/sw-update.ts` closes that gap: when a new worker takes control of the
+page, it reloads once. Verified against two builds served in sequence — without
+it the page stayed on the old build after a reload; with it, it picks up the new
+one on its own. To check a deploy by hand, add a query string
+(`.../undeintru/?v=2`): it misses the precache and goes to the network.
+
 ## Status
 
 See [`docs/STATUS.md`](docs/STATUS.md). Short version: the scaffold, the shared
