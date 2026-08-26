@@ -42,6 +42,14 @@ record.**
 | Backtest: coverage, bias, MAE vs. reading the catalog | done — see [MARKS.md](MARKS.md) |
 | App: estimator panel (grade, yearly medii, simulare) feeding the table | done |
 
+**Phase 4 — the interface.** Rebuilt from scratch around the shared media
+scale: the ruler of county cutoffs, the per-row prediction intervals, and the
+single line for the child's own media that runs down the whole list. Grouping,
+ordering, search and filiera filters, the four states of a row (estimate, no
+cutoff, aptitude exam, no history), self-hosted type, dark mode and the reduced
+-motion path are all in `app/src/main.ts` and `app/src/style.css`. Rationale in
+[UI.md](UI.md).
+
 `just check` is green: 143 tests, typecheck and lint clean in both packages.
 
 Two real defects were found along the way, both by the synthetic data:

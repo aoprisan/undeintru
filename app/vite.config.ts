@@ -24,8 +24,8 @@ export default defineConfig({
         start_url: base,
         scope: base,
         display: 'standalone',
-        background_color: '#ffffff',
-        theme_color: '#0b3d91',
+        background_color: '#e9e7e0',
+        theme_color: '#e9e7e0',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
@@ -38,9 +38,10 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // The data files are static and versioned by path (data/v1/...),
-        // so precaching them keeps the app fully usable offline.
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,json}'],
+        // The data files are static and versioned by path (data/v1/...), and
+        // the typefaces are served from this origin rather than a font CDN, so
+        // precaching both keeps the app fully usable — and legible — offline.
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,webmanifest,json,woff2}'],
       },
     }),
   ],

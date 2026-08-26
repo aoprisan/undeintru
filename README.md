@@ -12,9 +12,12 @@ pipeline in this repo downloads, parses and validates ahead of time.
 
 ```
 app/                    Vite vanilla-ts PWA (no framework)
+  src/main.ts           the whole interface — see docs/UI.md
   src/data/schema.ts    the shared data contract — see below
+  src/data/counties.ts  county codes to names ("SB" -> "Sibiu")
   src/model/predict.ts  the admission model — see docs/MODEL.md
   src/model/marks.ts    the marks model — see docs/MARKS.md
+  src/fonts/            self-hosted woff2 subsets, so there is no font CDN
   public/data/v1/       published JSON, written by `just emit`
 pipeline/               Node 22 + tsx + vitest
   src/fetch.ts          proxy-aware, throttled, caching downloader
@@ -98,6 +101,25 @@ catalog at face value and its 80% intervals cover 80–85%. The calibration
 constants are documented priors — re-estimable from real data, which pairs
 each candidate's school record with their exam marks. Full specification,
 measurements and limits in [`docs/MARKS.md`](docs/MARKS.md).
+
+## The interface
+
+One question, one chart. Every cutoff in the county sits on a fixed media scale
+of 5 to 10 — drawn as a ruler in the header, and again in every row of the list
+— and the child's media is a single blue rule running down the whole page. A
+row's bar is the 80% interval the next cutoff can land in; the filled part is
+how much of that interval the media is above, so the model's uncertainty is the
+thing you see rather than a number to take on trust.
+
+Probability is drawn as ink rather than colour (solid where the media clears,
+hatched where it does not), which leaves exactly one saturated colour on the
+page for the family's own number, and keeps the reading intact in greyscale or
+with colour blindness. Red appears in two places only: the synthetic-data
+banner, and a failure.
+
+The typefaces are self-hosted in `app/src/fonts/` and precached — no font CDN,
+because "no third-party calls" is a promise and a blocked CDN is a blank page.
+Full rationale in [`docs/UI.md`](docs/UI.md).
 
 ## Synthetic data
 
