@@ -1,0 +1,10 @@
+node_modules/
+dist/
+pipeline/raw/
+
+# build / tooling noise
+*.tsbuildinfo
+.DS_Store
+dev-dist/
+coverage/
+.vite/
