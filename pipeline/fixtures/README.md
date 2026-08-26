@@ -27,7 +27,15 @@ edit one to make a test pass — a fixture is evidence, not a test double.
 
 ## Currently empty
 
-No pages have been downloaded yet; the crawl was blocked by egress policy. See
-[`../../docs/STATUS.md`](../../docs/STATUS.md). While this directory holds no
-`.html` file, `pipeline/test/parse.repartizare.test.ts` asserts the parser
+No repartizare pages have been downloaded; `admitere.edu.ro` does not answer.
+See [`../../docs/STATUS.md`](../../docs/STATUS.md). While this directory holds
+no `.html` file, `pipeline/test/parse.repartizare.test.ts` asserts the parser
 stays unimplemented.
+
+## `evnat/` is a different thing
+
+[`evnat/`](evnat/) holds real Evaluarea Națională results from data.gov.ro,
+which *is* reachable. Those are candidate marks, not cutoffs, and they are
+CSV rather than HTML — so they neither satisfy nor disturb the `.html` ratchet
+above. The rules are the same: real bytes only, and a `.url` sidecar on
+everything.

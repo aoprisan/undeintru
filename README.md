@@ -25,8 +25,10 @@ pipeline/               Node 22 + tsx + vitest
   src/parse/            HTML -> rows, written against committed fixtures
   src/normalize.ts      pages -> pipeline/normalized/<year>/<county>.json
   src/emit.ts           normalized -> app/public/data/v1/, schema-validated
+  src/evnat/            REAL exam results from data.gov.ro — see below
   src/mock/             synthetic data generator, for validating the model
   fixtures/             committed sample pages the parser is written against
+  fixtures/evnat/       committed real candidates, with source sidecars
   raw/                  downloaded pages (gitignored)
 ```
 
@@ -39,6 +41,9 @@ just fetch 2024 SB       download the SB/2024 pages into pipeline/raw/
 just normalize 2024 SB   parse pipeline/raw/ into normalized rows
 just mock SB             write SYNTHETIC data (see "Synthetic data" below)
 just emit                validate and publish to app/public/data/v1/
+just evnat-verify 2025   recheck every published media against ours
+just evnat-calibrate     re-fit the school-record -> exam-mark table
+just evnat-sample        regenerate the committed real-data fixtures
 just typecheck
 just lint
 just test
@@ -49,12 +54,21 @@ just check               typecheck + lint + test
 
 ## Two rules the code enforces
 
-**Media de admitere, since 2023, is `(romana + matematica) / 2`, kept to two
-decimals and truncated — not rounded.** 9.855 is 9.85. Rounding moves a
-candidate across a cutoff and changes the answer the app gives, so the
-arithmetic is done in integer hundredths (`pipeline/src/util/media.ts`) and the
-truncation is tested directly. The schema rejects any media with more than two
-decimals, so an untruncated value cannot be published.
+**Media de admitere, since 2023, is the mean of the Evaluarea Națională
+grades, kept to two decimals and truncated — not rounded.** 9.855 is 9.85.
+Rounding moves a candidate across a cutoff and changes the answer the app
+gives, so the arithmetic is done in integer hundredths
+(`pipeline/src/util/media.ts`) and the truncation is tested directly. The
+schema rejects any media with more than two decimals, so an untruncated value
+cannot be published.
+
+It is the mean of **two** grades for most candidates and of **three** for
+those schooled in a minority language, who sit *Limba și literatura maternă*
+as a third written paper. That is 5.9% of the country and the majority in
+Harghita (86%) and Covasna (69%). The repo did not know this until the real
+results were checked against it; `just evnat-verify` now reproduces all
+152,235 published 2025 medias exactly, and would fail loudly if either branch
+drifted.
 
 **Cutoffs from different years are not comparable across 2023.** The formula
 changed that year — before it, the gimnaziu average was folded in. Every row,
@@ -82,25 +96,49 @@ measurements and limits in [`docs/MODEL.md`](docs/MODEL.md).
 ## Predicting the exam mark itself
 
 A kid in class V–VII has no media de admitere yet, and reading the school
-media off the catalog as if it were one is wrong in a known direction: school
-grades run higher than exam marks — about a point in română, more in
-matematică, and the gap widens as the grades drop.
+media off the catalog as if it were one is wrong in a known direction and by a
+known amount: across the 143,183 candidates in the published 2025 results,
+taking the gimnaziu average as the exam media runs **1.96 points hot**. The
+average kid with a school 9 scored **6.95**.
 
 `app/src/model/marks.ts` predicts the Evaluarea Națională media from what a
 parent actually has: the kid's current grade (V–VIII), the yearly school medii
 in română and matematică so far, and optionally the simulare marks for 8th
-graders. School grades pass through an inflation-correcting calibration into a
-latent-ability model whose uncertainty grows with every year still to run
-before the exam — so the answer for a 5th grader is honest about being vaguer
-than one for an 8th grader with a simulare in hand. The estimated media then
-chains into the admission model with its uncertainty attached, pulling every
-probability toward "incert" exactly as much as the estimate deserves.
+graders. Its calibration is **measured, not assumed** — a table of what
+candidates at each school level actually scored, built from the ministry's own
+published results. Uncertainty grows with every year still to run before the
+exam, so the answer for a 5th grader is honest about being vaguer than one for
+an 8th grader with a simulare in hand, and the estimated media chains into the
+admission model with its spread attached, pulling every probability toward
+"incert" exactly as much as the estimate deserves.
 
-On synthetic students the estimator roughly halves the error of reading the
-catalog at face value and its 80% intervals cover 80–85%. The calibration
-constants are documented priors — re-estimable from real data, which pairs
-each candidate's school record with their exam marks. Full specification,
-measurements and limits in [`docs/MARKS.md`](docs/MARKS.md).
+Calibrated on 2025 and scored against the **2026** cohort — a different year,
+so genuinely out of sample — it is off by +0.24 on average with 80% intervals
+covering 80.8%. The version it replaced used two guessed calibration lines and
+was off by +1.19 with its "80%" intervals covering 43.4%: a point optimistic,
+in the one direction that tells a parent their kid clears a cutoff they do not.
+Two things the real data said that no prior had: the inflation is much larger
+at the bottom of the scale than anyone assumed, and matematică is *not*
+uniformly harsher than română — the curves cross just below a school 7. Full
+specification, measurements and limits in [`docs/MARKS.md`](docs/MARKS.md).
+
+## Real data, and what is still synthetic
+
+The cutoffs and the exam results come from different places, and only one of
+them is reachable.
+
+| | source | real? |
+| --- | --- | --- |
+| Cutoffs per school and specialization | admitere.edu.ro | **no** — synthetic, bannered |
+| School→exam calibration | data.gov.ro, EN 2025 | **yes**, 143,183 candidates |
+| The media formula, both branches | verified against EN 2025 | **yes**, all 152,235 rows |
+| Marks-model backtest in CI | data.gov.ro, EN 2026 | **yes**, out of sample |
+
+`pipeline/src/evnat/` reads the ministry's published Evaluarea Națională
+workbooks (CC-BY 4.0). They are .xlsx, one sheet, 135 MB inflated, so it ships
+a small streaming XLSX reader rather than a dependency — zip central directory,
+deflate, and just enough SpreadsheetML for the file that exists. Everything it
+does not implement throws rather than returning a half-read sheet.
 
 ## The interface
 
@@ -201,8 +239,13 @@ one on its own. To check a deploy by hand, add a query string
 ## Status
 
 See [`docs/STATUS.md`](docs/STATUS.md). Short version: the scaffold, the shared
-schema, the emit path, both prediction models (admission and marks) and both
-hard-rule utilities are done and tested. The 2024/SB fixtures and the HTML parser are not — the
-environment this was built in blocks all egress to admitere.edu.ro, so there was
-no real markup to write the parser against, and guessing at it was not an
-option. Synthetic data stands in until that is unblocked.
+schema, the emit path, both prediction models (admission and marks), both
+hard-rule utilities and the real exam-results pipeline are done and tested —
+166 tests, typecheck and lint clean.
+
+The repartizare fixtures and the HTML parser are not, and that is now the only
+thing outstanding. Egress works — the real exam results came in over it — but
+`admitere.edu.ro` itself does not answer on either port from anywhere we can
+reach, so there is still no real markup to write the parser against, and
+guessing at it was never an option. Synthetic cutoffs stand in, behind a
+banner, until the host comes back.

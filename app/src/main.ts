@@ -258,8 +258,13 @@ const SCHOOL_GRADES = [5, 6, 7, 8] as const;
 /**
  * For a child who has not sat the exam yet: estimate a media from the school
  * record. See `model/marks.ts` for what the estimate rests on — the short
- * version is that school marks run higher than exam marks, and the estimate
- * corrects for that rather than taking the catalog at face value.
+ * version is that school marks run higher than exam marks, and by how much is
+ * measured from the published 2025 national results rather than assumed.
+ *
+ * This is the one number on the page that does not come from the dataset the
+ * app loaded, so it says where it comes from. The cutoffs it is compared
+ * against are a separate matter, and while they are synthetic the banner at
+ * the top of the page says so.
  */
 function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement {
   const gradeSelect = el(
@@ -393,7 +398,9 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
         el('b', {}, fmt(p.media.mean)),
         `. În 8 cazuri din 10 iese între ${fmt(p.media.interval[0])} și ${fmt(p.media.interval[1])} `,
         `— română ~${fmt(p.romana.mean)}, matematică ~${fmt(p.matematica.mean)}. `,
-        'Notele din școală sunt de obicei mai mari decât cele de la evaluare, iar estimarea scade diferența.',
+        'Notele din școală sunt de obicei mai mari decât cele de la evaluare. Cât de mare e ' +
+          'diferența nu e o presupunere: e măsurată pe rezultatele reale ale celor 143.183 de ' +
+          'candidați de la Evaluarea Națională 2025.',
       );
       useButton.removeAttribute('disabled');
     } catch (err) {
