@@ -84,3 +84,7 @@ does not have: bands, never percentages.
 - `prefers-reduced-motion` removes the entry animation and the line's transition.
 - Dark mode is a real palette, not an inversion: paper becomes graphite, ink
   becomes bone, and the pen blue lifts to stay legible on it.
+- A new build reaches people: the precache would otherwise serve the previous
+  interface to everyone who has already opened the app, so `sw-update.ts`
+  reloads the page once when a new service worker takes control. See the README
+  section on shipping a change.

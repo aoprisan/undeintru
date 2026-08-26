@@ -10,6 +10,7 @@ import {
   type Filiera,
 } from './data/schema.js';
 import { countyName } from './data/counties.js';
+import { reloadOnNewServiceWorker } from './sw-update.js';
 import {
   chanceBand,
   fitCutoffModel,
@@ -919,4 +920,5 @@ async function main(): Promise<void> {
   }
 }
 
+reloadOnNewServiceWorker();
 void main();
