@@ -136,3 +136,77 @@ th.num {
   border-radius: 0.75rem;
   color: var(--warn);
 }
+
+/* --- synthetic data warning ------------------------------------------------
+   Deliberately loud. Generated cutoffs that read as official are the worst
+   failure this app can have, so the warning is not a subtle footnote. */
+.banner {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--warn);
+  border-left-width: 4px;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  color: var(--fg);
+  font-size: 0.9375rem;
+}
+
+.banner[hidden] {
+  display: none;
+}
+
+/* --- chance pills ---------------------------------------------------------- */
+.pill {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 1rem;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.pill-sigur {
+  background: color-mix(in srgb, var(--ok) 18%, transparent);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+}
+
+.pill-probabil {
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 25%, transparent);
+}
+
+.pill-incert {
+  background: color-mix(in srgb, var(--warn) 14%, transparent);
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 30%, transparent);
+}
+
+.pill-putin-probabil,
+.pill-improbabil {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+.pill-open {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 28%, transparent);
+}
+
+.pill-none {
+  background: transparent;
+  color: var(--muted);
+  border-color: var(--line);
+  font-weight: 500;
+}
+
+.model-note {
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}

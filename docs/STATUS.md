@@ -22,11 +22,33 @@ that runs `just check`, builds, and deploys `app/dist` to Pages on push to
 | `pipeline/src/parse/repartizare.ts` — HTML to rows | **not implemented** |
 | `pipeline/fixtures/` — 2024/SB sample pages | **empty** |
 
-`just check` is green: 72 tests, typecheck and lint clean in both packages.
+**Phase 2 — the prediction model, validated on synthetic data.**
+
+| Piece | State |
+| --- | --- |
+| `app/src/model/predict.ts` — cutoff distribution, admission probability | done, 29 tests |
+| `pipeline/src/mock/` — seeded synthetic generator with ground truth | done, 16 tests |
+| Backtest: calibration, interval coverage, Brier vs. baseline | done — see [MODEL.md](MODEL.md) |
+| App: probability bands, prediction interval, synthetic-data banner | done |
+
+`just check` is green: 120 tests, typecheck and lint clean in both packages.
+
+Two real defects were found along the way, both by the synthetic data:
+
+- The schema's two-decimal check was `Math.round(m * 100) !== m * 100`, which
+  **rejects a legitimate 8.96** because `8.96 * 100` is 896.0000000000001. It
+  now compares with a tolerance, and a test sweeps all 901 valid medias.
+- The model's first spread estimator combined separately-estimated `tau` and
+  `sigma`, leaving it overconfident — 80% intervals covered only 74%. Estimating
+  from pooled one-step-ahead errors instead brought coverage to 83.5%.
 
 ## Blocked: no network access to admitere.edu.ro
 
-The crawl was never run, so there are no fixtures, so there is no parser.
+The crawl was never run, so there are no fixtures, so there is no parser. The
+data published in `app/public/data/v1/` is **synthetic** — generated, marked
+`provenance: 'synthetic'` at every layer, and shown behind a warning banner in
+the app. It stands in so the pipeline and the model can be exercised end to
+end; it says nothing about real schools.
 
 The environment this repo was built in routes egress through a policy proxy
 that refuses the host:
