@@ -1,6 +1,7 @@
 node_modules/
 dist/
 pipeline/raw/
+pipeline/normalized/
 
 # build / tooling noise
 *.tsbuildinfo
