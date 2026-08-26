@@ -31,6 +31,11 @@ fetch year county="SB":
 normalize year county="SB":
     npm run --workspace pipeline --silent cli -- normalize --year {{year}} --county {{county}}
 
+# Write SYNTHETIC data for validating the pipeline and the prediction model.
+# Not real cutoffs -- every row is stamped provenance: synthetic.
+mock county="SB":
+    npm run --workspace pipeline --silent cli -- mock --county {{county}}
+
 # Emit validated public data -> app/public/data/v1/
 emit:
     npm run --workspace pipeline --silent cli -- emit

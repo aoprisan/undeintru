@@ -45,6 +45,7 @@ describe('emit', () => {
     await writeNormalized({
       year: 2024,
       county: 'SB',
+      provenance: 'official',
       sources: ['https://admitere.edu.ro/example'],
       rows: [baseRow, { ...baseRow, specId: '568', specLabel: 'Filologie', lastMedia: null }],
     });
@@ -64,16 +65,17 @@ describe('emit', () => {
       JSON.parse(await readFile(join(outDir, 'index.json'), 'utf8')),
     );
     expect(index.datasets).toEqual([
-      { year: 2024, county: 'SB', path: '2024/SB.json', rowCount: 2 },
+      { year: 2024, county: 'SB', path: '2024/SB.json', rowCount: 2, provenance: 'official' },
     ]);
   });
 
   it('lists newest year first, then county', async () => {
-    await writeNormalized({ year: 2024, county: 'SB', sources: [], rows: [] });
-    await writeNormalized({ year: 2023, county: 'SB', sources: [], rows: [] });
+    await writeNormalized({ year: 2024, county: 'SB', provenance: 'official', sources: [], rows: [] });
+    await writeNormalized({ year: 2023, county: 'SB', provenance: 'official', sources: [], rows: [] });
     await writeNormalized({
       year: 2024,
       county: 'CJ',
+      provenance: 'official',
       sources: [],
       rows: [{ ...baseRow, county: 'CJ' }],
     });
@@ -93,6 +95,7 @@ describe('emit', () => {
     await writeNormalized({
       year: 2024,
       county: 'SB',
+      provenance: 'official',
       sources: [],
       // Three decimals: the truncation rule was not applied upstream.
       rows: [{ ...baseRow, lastMedia: 9.855 }],
@@ -105,10 +108,11 @@ describe('emit', () => {
   });
 
   it('validates every dataset before writing any of them', async () => {
-    await writeNormalized({ year: 2024, county: 'SB', sources: [], rows: [baseRow] });
+    await writeNormalized({ year: 2024, county: 'SB', provenance: 'official', sources: [], rows: [baseRow] });
     await writeNormalized({
       year: 2024,
       county: 'CJ',
+      provenance: 'official',
       sources: [],
       rows: [{ ...baseRow, county: 'CJ', seats: -5 }],
     });
@@ -123,7 +127,7 @@ describe('emit', () => {
     await mkdir(dir, { recursive: true });
     await writeFile(
       join(dir, 'SB.json'),
-      JSON.stringify({ year: 2023, county: 'SB', sources: [], rows: [] }),
+      JSON.stringify({ year: 2023, county: 'SB', provenance: 'official', sources: [], rows: [] }),
       'utf8',
     );
 
@@ -137,7 +141,7 @@ describe('emit', () => {
   });
 
   it('is byte-stable across runs', async () => {
-    await writeNormalized({ year: 2024, county: 'SB', sources: [], rows: [baseRow] });
+    await writeNormalized({ year: 2024, county: 'SB', provenance: 'official', sources: [], rows: [baseRow] });
     await emit({ normalizedDir, outDir, now: NOW });
     const first = await readFile(join(outDir, '2024', 'SB.json'), 'utf8');
     await emit({ normalizedDir, outDir, now: NOW });

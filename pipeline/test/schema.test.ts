@@ -30,6 +30,7 @@ function dataset(overrides: Record<string, unknown> = {}): unknown {
     year: 2024,
     county: 'SB',
     generatedAt: '2024-08-01T00:00:00.000Z',
+    provenance: 'official',
     sources: ['https://admitere.edu.ro/example'],
     rows: [row],
     ...overrides,
@@ -61,6 +62,16 @@ describe('assertCountyDataset', () => {
     expect(() => assertCountyDataset(dataset({ rows: [{ ...row, lastMedia: 9.855 }] }))).toThrow(
       /more than two decimals/,
     );
+  });
+
+  it('accepts every two-decimal media on the scale, floats notwithstanding', () => {
+    // Regression: the check used to be `Math.round(m * 100) !== m * 100`, which
+    // rejects 8.96 because `8.96 * 100` is 896.0000000000001. Sweep the whole
+    // grid so no individual value can regress silently.
+    for (let h = 100; h <= 1000; h += 1) {
+      const media = h / 100;
+      expect(() => assertCountyDataset(dataset({ rows: [{ ...row, lastMedia: media }] }))).not.toThrow();
+    }
   });
 
   it('rejects a media outside the 1..10 scale', () => {
@@ -100,6 +111,20 @@ describe('assertCountyDataset', () => {
     );
   });
 
+  it('rejects an unknown provenance', () => {
+    expect(() => assertCountyDataset(dataset({ provenance: 'guessed' }))).toThrow(/provenance/);
+    expect(() => assertCountyDataset(dataset({ provenance: undefined }))).toThrow(/provenance/);
+  });
+
+  it('refuses to let synthetic data cite sources it never had', () => {
+    expect(() =>
+      assertCountyDataset(dataset({ provenance: 'synthetic' })),
+    ).toThrow(/synthetic datasets must not cite sources/);
+    expect(() =>
+      assertCountyDataset(dataset({ provenance: 'synthetic', sources: [] })),
+    ).not.toThrow();
+  });
+
   it('rejects a wrong schema version', () => {
     expect(() => assertCountyDataset(dataset({ schemaVersion: 99 }))).toThrow(/schemaVersion/);
   });
@@ -126,22 +151,31 @@ describe('assertDatasetIndex', () => {
     datasets,
   });
 
+  const entry = {
+    year: 2024,
+    county: 'SB',
+    path: '2024/SB.json',
+    rowCount: 12,
+    provenance: 'official',
+  };
+
   it('accepts a well-formed index', () => {
-    expect(
-      assertDatasetIndex(index([{ year: 2024, county: 'SB', path: '2024/SB.json', rowCount: 12 }]))
-        .datasets,
-    ).toHaveLength(1);
+    expect(assertDatasetIndex(index([entry])).datasets).toHaveLength(1);
   });
 
   it('rejects a path that does not match its year and county', () => {
-    expect(() =>
-      assertDatasetIndex(index([{ year: 2024, county: 'SB', path: '2023/SB.json', rowCount: 1 }])),
-    ).toThrow(/expected 2024\/SB\.json/);
+    expect(() => assertDatasetIndex(index([{ ...entry, path: '2023/SB.json' }]))).toThrow(
+      /expected 2024\/SB\.json/,
+    );
   });
 
   it('rejects duplicate datasets', () => {
-    const entry = { year: 2024, county: 'SB', path: '2024/SB.json', rowCount: 1 };
     expect(() => assertDatasetIndex(index([entry, entry]))).toThrow(/duplicate dataset/);
+  });
+
+  it('rejects an entry with no provenance, so synthetic data cannot hide', () => {
+    const { provenance: _omitted, ...withoutProvenance } = entry;
+    expect(() => assertDatasetIndex(index([withoutProvenance]))).toThrow(/provenance/);
   });
 });
 

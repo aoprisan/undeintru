@@ -70,6 +70,7 @@ export function toCountyDataset(normalized: NormalizedFile, generatedAt: string)
     year: normalized.year,
     county: normalized.county,
     generatedAt,
+    provenance: normalized.provenance,
     sources: normalized.sources,
     rows: normalized.rows,
   };
@@ -115,6 +116,7 @@ export async function emit(options: EmitOptions = {}): Promise<EmitResult> {
         county: dataset.county,
         path: `${dataset.year}/${dataset.county}.json`,
         rowCount: dataset.rows.length,
+        provenance: dataset.provenance,
       },
     });
   }

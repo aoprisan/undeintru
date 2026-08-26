@@ -4,6 +4,7 @@
  */
 
 import { crawl } from './crawl.js';
+import { DEFAULT_MOCK_SEED, DEFAULT_MOCK_YEARS, writeMock } from './mock/index.js';
 import { emit } from './emit.js';
 import { normalize } from './normalize.js';
 
@@ -20,6 +21,11 @@ const USAGE = `undeintru pipeline
 
   emit       Validate pipeline/normalized/ against the shared schema and
              publish to app/public/data/v1/.
+
+  mock       --county <code> [--years 2023,2024] [--seed <n>]
+             Write SYNTHETIC normalized data, for exercising the pipeline and
+             the prediction model while the real source is unreachable. Every
+             row it writes is stamped provenance: synthetic.
 `;
 
 interface Flags {
@@ -89,6 +95,24 @@ async function main(argv: readonly string[]): Promise<void> {
     }
     case 'emit': {
       await emit();
+      return;
+    }
+    case 'mock': {
+      const rawYears = flags.options.get('years');
+      const years =
+        typeof rawYears === 'string'
+          ? rawYears.split(',').map((y) => {
+              const value = Number(y.trim());
+              if (!Number.isInteger(value)) throw new Error(`--years: bad year ${y}`);
+              return value;
+            })
+          : [...DEFAULT_MOCK_YEARS];
+      const rawSeed = flags.options.get('seed');
+      await writeMock({
+        county: requiredString(flags, 'county').toUpperCase(),
+        years,
+        seed: typeof rawSeed === 'string' ? Number(rawSeed) : DEFAULT_MOCK_SEED,
+      });
       return;
     }
     default: {

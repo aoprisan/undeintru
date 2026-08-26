@@ -12,12 +12,14 @@ import { join } from 'node:path';
 
 import { FIXTURES_DIR, NORMALIZED_DIR, RAW_DIR } from './paths.js';
 import { parseRepartizarePage } from './parse/repartizare.js';
-import type { AdmissionRow } from './schema.js';
+import type { AdmissionRow, Provenance } from './schema.js';
 
 /** The intermediate file format: `pipeline/normalized/<year>/<county>.json`. */
 export interface NormalizedFile {
   readonly year: number;
   readonly county: string;
+  /** Parsed pages are always 'official'; the mock generator writes 'synthetic'. */
+  readonly provenance: Provenance;
   readonly sources: readonly string[];
   readonly rows: readonly AdmissionRow[];
 }
@@ -122,7 +124,13 @@ export function normalizePages(
       a.specId.localeCompare(b.specId),
   );
 
-  return { year, county, sources: [...new Set(sources)].sort(), rows };
+  return {
+    year,
+    county,
+    provenance: 'official',
+    sources: [...new Set(sources)].sort(),
+    rows,
+  };
 }
 
 export interface NormalizeOptions {
