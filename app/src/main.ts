@@ -16,6 +16,13 @@ import {
   type FittedModel,
   type Prediction,
 } from './model/predict.js';
+import {
+  MarksError,
+  predictMarks,
+  type SchoolGrade,
+  type StudentRecord,
+  type YearlyMedia,
+} from './model/marks.js';
 
 const DATA_ROOT = new URL('data/v1/', document.baseURI);
 
@@ -55,9 +62,14 @@ interface Scored {
   readonly rank: number;
 }
 
-function score(model: FittedModel, rows: readonly AdmissionRow[], media: number | null): Scored[] {
+function score(
+  model: FittedModel,
+  rows: readonly AdmissionRow[],
+  media: number | null,
+  mediaSd = 0,
+): Scored[] {
   return rows.map((row) => {
-    const prediction = predict(model, specKey(row), media);
+    const prediction = predict(model, specKey(row), media, mediaSd);
     const rank =
       prediction.kind === 'estimate'
         ? prediction.probability
@@ -128,6 +140,175 @@ function renderRows(tbody: HTMLElement, scored: readonly Scored[], hasMedia: boo
   );
 }
 
+// --- the marks estimator ----------------------------------------------------
+
+const GRADE_LABELS: Readonly<Record<SchoolGrade, string>> = {
+  5: 'a V-a',
+  6: 'a VI-a',
+  7: 'a VII-a',
+  8: 'a VIII-a',
+};
+
+const SCHOOL_GRADES = [5, 6, 7, 8] as const;
+
+/**
+ * The panel that estimates a media de admitere from the school record, for
+ * kids in class V–VIII who have not sat the exam yet. See
+ * `model/marks.ts` for what the estimate means and what it rests on.
+ */
+function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement {
+  const gradeSelect = el(
+    'select',
+    { id: 'est-grade' },
+    ...SCHOOL_GRADES.map((g) => el('option', { value: String(g) }, `clasa ${GRADE_LABELS[g]}`)),
+  );
+  gradeSelect.value = '8';
+
+  const grid = el('div', { class: 'est-grid' });
+  const result = el('p', { class: 'est-result' }, 'Completează mediile anuale din catalog.');
+  const useButton = el('button', { type: 'button', class: 'est-use', disabled: '' });
+  useButton.textContent = 'Folosește media estimată';
+
+  let estimate: { mean: number; sd: number } | null = null;
+
+  const markInput = (attrs: Record<string, string>): HTMLInputElement =>
+    el('input', {
+      type: 'number',
+      min: '1',
+      max: '10',
+      step: '0.01',
+      inputmode: 'decimal',
+      placeholder: '–',
+      ...attrs,
+    });
+
+  function subjectRow(subject: 'romana' | 'matematica', label: string, upTo: SchoolGrade): HTMLElement {
+    return el(
+      'div',
+      { class: 'est-row' },
+      el('span', { class: 'est-subject' }, label),
+      ...SCHOOL_GRADES.filter((g) => g <= upTo).map((g) =>
+        el(
+          'label',
+          { class: 'est-cell' },
+          el('span', {}, `cls. ${GRADE_LABELS[g]}`),
+          markInput({ 'data-subject': subject, 'data-grade': String(g) }),
+        ),
+      ),
+    );
+  }
+
+  function rebuild(): void {
+    const upTo = Number(gradeSelect.value) as SchoolGrade;
+    const rows = [
+      subjectRow('romana', 'Română', upTo),
+      subjectRow('matematica', 'Matematică', upTo),
+    ];
+    if (upTo === 8) {
+      rows.push(
+        el(
+          'div',
+          { class: 'est-row' },
+          el('span', { class: 'est-subject' }, 'Simulare (opțional)'),
+          el(
+            'label',
+            { class: 'est-cell' },
+            el('span', {}, 'română'),
+            markInput({ 'data-sim': 'romana' }),
+          ),
+          el(
+            'label',
+            { class: 'est-cell' },
+            el('span', {}, 'matematică'),
+            markInput({ 'data-sim': 'matematica' }),
+          ),
+        ),
+      );
+    }
+    grid.replaceChildren(...rows);
+    recompute();
+  }
+
+  function recompute(): void {
+    const currentGrade = Number(gradeSelect.value) as SchoolGrade;
+    const romana: YearlyMedia[] = [];
+    const matematica: YearlyMedia[] = [];
+    const simulare: { romana?: number; matematica?: number } = {};
+
+    for (const input of grid.querySelectorAll('input')) {
+      const raw = input.value.trim();
+      if (raw === '') continue;
+      const value = Number(raw);
+      const subject = input.dataset['subject'];
+      const grade = Number(input.dataset['grade']) as SchoolGrade;
+      if (subject === 'romana') romana.push({ grade, media: value });
+      else if (subject === 'matematica') matematica.push({ grade, media: value });
+      else if (input.dataset['sim'] === 'romana') simulare.romana = value;
+      else if (input.dataset['sim'] === 'matematica') simulare.matematica = value;
+    }
+
+    estimate = null;
+    useButton.setAttribute('disabled', '');
+
+    if (romana.length === 0 || matematica.length === 0) {
+      result.textContent = 'Completează cel puțin o medie anuală la fiecare materie.';
+      return;
+    }
+
+    const record: StudentRecord = {
+      currentGrade,
+      romana,
+      matematica,
+      ...(simulare.romana !== undefined || simulare.matematica !== undefined ? { simulare } : {}),
+    };
+
+    try {
+      const p = predictMarks(record);
+      estimate = { mean: p.media.mean, sd: p.media.sd };
+      result.textContent =
+        `Media de admitere estimată: ${p.media.mean.toFixed(2)} ` +
+        `(interval 80%: ${p.media.interval[0].toFixed(2)}–${p.media.interval[1].toFixed(2)}). ` +
+        `Română ~${p.romana.mean.toFixed(2)}, matematică ~${p.matematica.mean.toFixed(2)}. ` +
+        'Notele din școală sunt de obicei mai mari decât cele de la evaluare — estimarea ține cont de asta.';
+      useButton.removeAttribute('disabled');
+    } catch (err) {
+      result.textContent =
+        err instanceof MarksError
+          ? 'Verifică valorile introduse: note între 1 și 10, câte o medie pe clasă.'
+          : 'Estimarea nu a putut fi calculată.';
+    }
+  }
+
+  gradeSelect.addEventListener('change', rebuild);
+  grid.addEventListener('input', recompute);
+  useButton.addEventListener('click', () => {
+    if (estimate) onUse(estimate.mean, estimate.sd);
+  });
+  rebuild();
+
+  return el(
+    'details',
+    { class: 'estimator' },
+    el('summary', {}, 'Nu știi media? Estimeaz-o din notele din școală (clasele V–VIII)'),
+    el(
+      'p',
+      { class: 'est-lede' },
+      'Introdu mediile anuale la română și matematică din anii de gimnaziu de până acum. ' +
+        'Estimarea este orientativă: folosește calibrări prudente, iar pentru clasele mici ' +
+        'incertitudinea este mare — mai sunt ani până la examen.',
+    ),
+    el(
+      'div',
+      { class: 'field' },
+      el('label', { for: 'est-grade' }, 'În ce clasă este copilul?'),
+      gradeSelect,
+    ),
+    grid,
+    result,
+    useButton,
+  );
+}
+
 /** Group index entries by county, newest year first. */
 function byCounty(index: DatasetIndex): Map<string, DatasetIndexEntry[]> {
   const map = new Map<string, DatasetIndexEntry[]>();
@@ -167,6 +348,18 @@ function buildUi(index: DatasetIndex): void {
     placeholder: '9.85',
   });
 
+  /**
+   * Spread of the media when it came from the marks estimator rather than an
+   * exam result; folded into every admission probability. Typing a media by
+   * hand resets it — a typed media is treated as exact.
+   */
+  let estimatedMediaSd = 0;
+  const estimator = buildEstimator((mean, sd) => {
+    mediaInput.value = mean.toFixed(2);
+    estimatedMediaSd = sd;
+    refresh();
+  });
+
   const banner = el('div', { class: 'banner', hidden: 'hidden' });
   const summary = el('p', { class: 'summary' });
   const modelNote = el('p', { class: 'model-note' });
@@ -187,6 +380,7 @@ function buildUi(index: DatasetIndex): void {
       el('div', { class: 'field' }, el('label', { for: 'county' }, 'Județ'), countySelect),
       el('div', { class: 'field' }, el('label', { for: 'media' }, 'Media de admitere'), mediaInput),
     ),
+    estimator,
     summary,
     el(
       'table',
@@ -225,14 +419,18 @@ function buildUi(index: DatasetIndex): void {
     const parsed = raw === '' ? null : Number(raw);
     const media = parsed !== null && Number.isFinite(parsed) ? parsed : null;
 
-    const scored = score(model, latest.rows, media).sort(
+    const scored = score(model, latest.rows, media, estimatedMediaSd).sort(
       (a, b) => b.rank - a.rank || a.row.schoolName.localeCompare(b.row.schoolName, 'ro'),
     );
 
+    const mediaLabel =
+      estimatedMediaSd > 0
+        ? `media estimată ${media?.toFixed(2) ?? ''} (±${(estimatedMediaSd * 1.2816).toFixed(2)}, inclusă în șanse)`
+        : `media ${media?.toFixed(2) ?? ''}`;
     summary.textContent =
       media === null
         ? `${latest.rows.length} specializări în ${model.county}. Introdu o medie pentru a vedea șansele.`
-        : `Șanse estimate pentru ${model.targetYear}, cu media ${media.toFixed(2)}, pe baza pragurilor din ${model.baseYear}.`;
+        : `Șanse estimate pentru ${model.targetYear}, cu ${mediaLabel}, pe baza pragurilor din ${model.baseYear}.`;
 
     modelNote.textContent =
       model.evidence === 'estimated'
@@ -273,7 +471,10 @@ function buildUi(index: DatasetIndex): void {
   }
 
   countySelect.addEventListener('change', () => void selectCounty(countySelect.value));
-  mediaInput.addEventListener('input', refresh);
+  mediaInput.addEventListener('input', () => {
+    estimatedMediaSd = 0;
+    refresh();
+  });
 
   const first = countyNames[0];
   if (first) void selectCounty(first);

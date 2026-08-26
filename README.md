@@ -13,7 +13,8 @@ pipeline in this repo downloads, parses and validates ahead of time.
 ```
 app/                    Vite vanilla-ts PWA (no framework)
   src/data/schema.ts    the shared data contract — see below
-  src/model/predict.ts  the prediction model — see docs/MODEL.md
+  src/model/predict.ts  the admission model — see docs/MODEL.md
+  src/model/marks.ts    the marks model — see docs/MARKS.md
   public/data/v1/       published JSON, written by `just emit`
 pipeline/               Node 22 + tsx + vitest
   src/fetch.ts          proxy-aware, throttled, caching downloader
@@ -74,6 +75,29 @@ Validated against synthetic data with known ground truth: calibrated within 2.9
 percentage points, 80% intervals covering 83.5%, and a 31% better Brier score
 than treating last year's cutoff as a hard threshold. Full specification,
 measurements and limits in [`docs/MODEL.md`](docs/MODEL.md).
+
+## Predicting the exam mark itself
+
+A kid in class V–VII has no media de admitere yet, and reading the school
+media off the catalog as if it were one is wrong in a known direction: school
+grades run higher than exam marks — about a point in română, more in
+matematică, and the gap widens as the grades drop.
+
+`app/src/model/marks.ts` predicts the Evaluarea Națională media from what a
+parent actually has: the kid's current grade (V–VIII), the yearly school medii
+in română and matematică so far, and optionally the simulare marks for 8th
+graders. School grades pass through an inflation-correcting calibration into a
+latent-ability model whose uncertainty grows with every year still to run
+before the exam — so the answer for a 5th grader is honest about being vaguer
+than one for an 8th grader with a simulare in hand. The estimated media then
+chains into the admission model with its uncertainty attached, pulling every
+probability toward "incert" exactly as much as the estimate deserves.
+
+On synthetic students the estimator roughly halves the error of reading the
+catalog at face value and its 80% intervals cover 80–85%. The calibration
+constants are documented priors — re-estimable from real data, which pairs
+each candidate's school record with their exam marks. Full specification,
+measurements and limits in [`docs/MARKS.md`](docs/MARKS.md).
 
 ## Synthetic data
 
@@ -140,8 +164,8 @@ undici's `EnvHttpProxyAgent` so it works behind a proxy.
 ## Status
 
 See [`docs/STATUS.md`](docs/STATUS.md). Short version: the scaffold, the shared
-schema, the emit path, the prediction model and both hard-rule utilities are
-done and tested. The 2024/SB fixtures and the HTML parser are not — the
+schema, the emit path, both prediction models (admission and marks) and both
+hard-rule utilities are done and tested. The 2024/SB fixtures and the HTML parser are not — the
 environment this was built in blocks all egress to admitere.edu.ro, so there was
 no real markup to write the parser against, and guessing at it was not an
 option. Synthetic data stands in until that is unblocked.
