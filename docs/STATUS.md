@@ -31,7 +31,18 @@ that runs `just check`, builds, and deploys `app/dist` to Pages on push to
 | Backtest: calibration, interval coverage, Brier vs. baseline | done — see [MODEL.md](MODEL.md) |
 | App: probability bands, prediction interval, synthetic-data banner | done |
 
-`just check` is green: 120 tests, typecheck and lint clean in both packages.
+**Phase 3 — the marks model: predicting the exam media from the school
+record.**
+
+| Piece | State |
+| --- | --- |
+| `app/src/model/marks.ts` — grades V–VIII → predicted EN media + interval | done, 23 tests |
+| `pipeline/src/mock/students.ts` — seeded synthetic students, ground truth | done |
+| `predict()` accepts an uncertain media and chains the two models | done |
+| Backtest: coverage, bias, MAE vs. reading the catalog | done — see [MARKS.md](MARKS.md) |
+| App: estimator panel (grade, yearly medii, simulare) feeding the table | done |
+
+`just check` is green: 143 tests, typecheck and lint clean in both packages.
 
 Two real defects were found along the way, both by the synthetic data:
 

@@ -210,3 +210,93 @@ th.num {
   color: var(--muted);
   font-size: 0.8125rem;
 }
+
+/* --- the marks estimator ---------------------------------------------------
+   For kids who have no media yet: estimate one from the school record. */
+.estimator {
+  margin-top: 1rem;
+  padding: 0 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+}
+
+.estimator summary {
+  padding: 0.75rem 0;
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.estimator[open] summary {
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.75rem;
+}
+
+.est-lede {
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.est-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.est-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.est-subject {
+  flex: 0 0 9rem;
+  font-size: 0.875rem;
+  padding-bottom: 0.55rem;
+}
+
+.est-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.est-cell span {
+  font-size: 0.6875rem;
+  color: var(--muted);
+}
+
+.est-cell input {
+  font: inherit;
+  width: 5.5rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+.est-result {
+  margin: 0.75rem 0;
+  font-size: 0.9375rem;
+}
+
+.est-use {
+  font: inherit;
+  font-weight: 600;
+  margin: 0 0 1rem;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--accent);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.est-use[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

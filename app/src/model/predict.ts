@@ -65,7 +65,7 @@ export const SIGMA_PRIOR = 0.25;
 export const TAU_PRIOR = 0.2;
 
 /** z for a two-sided 80% interval. */
-const Z_80 = 1.2815515655446004;
+export const Z_80 = 1.2815515655446004;
 
 /** Minimum spread, so a freak run of identical cutoffs cannot yield sd = 0. */
 const MIN_SD = 0.02;
@@ -312,8 +312,19 @@ export type Prediction =
  * @param media the candidate's media de admitere, or `null` to ask only about
  *   the cutoff (the probability is then computed for the cutoff itself, which
  *   is 0.5 by construction — callers usually pass a real media).
+ * @param mediaSd spread of the media itself, when it is an *estimate* rather
+ *   than an exam result — the marks model (`marks.ts`) predicts a media for a
+ *   kid who has not sat the exam yet. Cutoff noise and media noise are
+ *   independent, so their variances add, and an uncertain media pulls every
+ *   probability toward 0.5 — which is the honest direction. Defaults to 0, an
+ *   exact media.
  */
-export function predict(model: FittedModel, key: string, media: number | null): Prediction {
+export function predict(
+  model: FittedModel,
+  key: string,
+  media: number | null,
+  mediaSd = 0,
+): Prediction {
   const row = model.base.get(key);
   if (!row) return { kind: 'unavailable', reason: 'no-history' };
   if (row.vocational) return { kind: 'unavailable', reason: 'vocational' };
@@ -321,7 +332,7 @@ export function predict(model: FittedModel, key: string, media: number | null): 
 
   const cutoff = row.lastMedia;
   const sd = model.sd;
-  const probability = media === null ? 0.5 : normalCdf((media - cutoff) / sd);
+  const probability = media === null ? 0.5 : normalCdf((media - cutoff) / Math.hypot(sd, mediaSd));
 
   return {
     kind: 'estimate',
