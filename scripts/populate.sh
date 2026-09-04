@@ -35,8 +35,10 @@ if [ "${CI:-}" = "true" ] || [ "${UNDEINTRU_OFFLINE:-}" = "1" ]; then
 fi
 
 if [ ! -d node_modules ]; then
-  echo "Installing dependencies (npm ci)..."
-  npm ci --no-audit --no-fund
+  # --ignore-scripts is already the repository default (.npmrc); repeated here
+  # so it holds even if npm is run with a config that overrides it.
+  echo "Installing dependencies (npm ci --ignore-scripts)..."
+  npm ci --ignore-scripts --no-audit --no-fund
 fi
 
 if command -v curl >/dev/null 2>&1 && [[ " $* " != *" --stage-only "* ]]; then

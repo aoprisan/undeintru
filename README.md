@@ -211,6 +211,26 @@ recording where it came from. When a page does not match, the parser throws
 `PageStructureError` **with the URL** rather than skipping the row — save that
 page as a fixture and extend the parser.
 
+## What runs on your machine
+
+Nothing at install time. `.npmrc` sets `ignore-scripts=true`, so no package
+gets to run a preinstall/install/postinstall hook when you run `npm ci` — the
+one dependency that ships such a hook, esbuild, only uses it to check for a
+prebuilt binary the lockfile already pins as an optional dependency, and the
+whole toolchain installs, checks and builds without it. Every package in the
+lockfile carries an integrity hash, and CI installs with `npm ci`, so what you
+install is byte-for-byte what was reviewed.
+
+The app itself has **no runtime dependencies**: what ships to the browser is
+this repository's own code plus the Workbox service-worker runtime that the
+PWA plugin generates at build time. The pipeline has one, `undici`, used only
+by the crawler for proxy support, and never loaded by tests, CI or the app.
+Everything else — TypeScript, Vite, ESLint, Vitest — is build-time tooling that
+runs in-process and makes no network requests.
+
+The only commands that touch the network are `just fetch`, `just harvest`,
+`scripts/populate.sh` and the `just evnat-*` recipes, and each says so.
+
 ## Offline by contract
 
 Tests and CI never touch the network. `assertNetworkAllowed()` throws when
