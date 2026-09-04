@@ -37,6 +37,7 @@ pipeline/               Node 22 + tsx + vitest
 ```
 just dev                 Vite dev server
 just build               production build -> app/dist
+just harvest SB          fetch every comparable year and stage fixtures (see below)
 just fetch 2024 SB       download the SB/2024 pages into pipeline/raw/
 just normalize 2024 SB   parse pipeline/raw/ into normalized rows
 just mock SB             write SYNTHETIC data (see "Synthetic data" below)
@@ -249,3 +250,21 @@ thing outstanding. Egress works — the real exam results came in over it — bu
 reach, so there is still no real markup to write the parser against, and
 guessing at it was never an option. Synthetic cutoffs stand in, behind a
 banner, until the host comes back.
+
+## Populating the real cutoffs
+
+The network half of that job is one command, to run on a machine that can
+reach the site:
+
+```
+scripts/populate.sh              # SB, 2023–2026; needs Node 22, nothing else
+scripts/populate.sh SB 2024 --discover   # print the URLs it would follow and stop
+```
+
+It crawls each year discovery-first (printing every link it follows), descends
+one level below the county pages, records which cached page belongs to which
+county-year in `pipeline/raw/harvest.json`, and stages three representative
+pages per year into `pipeline/fixtures/` with their `.url` sidecars. A year the
+site does not have yet is reported and skipped. Commit and push the fixtures;
+`just check` then fails on purpose until the parser exists, which is the next
+step and the only one left — see [`docs/STATUS.md`](docs/STATUS.md).

@@ -27,6 +27,8 @@ export interface CrawlOptions {
   readonly discoverOnly?: boolean;
   /** Safety rail against following the site into unrelated sections. */
   readonly maxPages?: number;
+  /** Where downloads are cached. Defaults to `pipeline/raw/`. */
+  readonly rawDir?: string;
 }
 
 export interface CrawlResult {
@@ -58,7 +60,7 @@ function log(line: string): void {
 export async function crawl(options: CrawlOptions): Promise<CrawlResult> {
   const { year, county, discoverOnly = false, maxPages = 200 } = options;
   const seed = options.seed ?? ADMITERE_ORIGIN;
-  const downloader = new Downloader();
+  const downloader = new Downloader(options.rawDir);
   const pages: { url: string; file: string; cached: boolean }[] = [];
 
   const record = (page: RawPage): void => {

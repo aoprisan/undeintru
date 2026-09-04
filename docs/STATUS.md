@@ -148,24 +148,52 @@ suite instead of passing silently.
 
 ## Picking it up
 
-On a machine that can reach the site:
+On a machine that can reach the site, one command does the whole network half:
 
-1. `just fetch 2024 SB --` runs discovery first: it starts at the origin, prints
-   every candidate link for 2024, then every candidate link for SB, and only
-   then downloads. Run `npm run --workspace pipeline cli -- fetch --year 2024
-   --county SB --discover` to print the URLs and stop.
-2. Confirm the printed URLs are the repartizare pages, then let it crawl.
-   Downloads land in `pipeline/raw/` (gitignored), one request every 2 seconds,
-   cached pages skipped.
-3. Copy 2-3 representative pages into `pipeline/fixtures/`, each with a
-   `<name>.html.url` sidecar naming its source URL. Commit them.
-4. Implement `parseRepartizarePage()` in `pipeline/src/parse/repartizare.ts`
-   against those files. Route every text field through `normalizeText()` and
-   every media cell through `parseMediaCell()`; both are already tested. Use
-   `toFiliera()` for the filiera column.
-5. `just normalize 2024 SB && just emit`, then `just check`.
+```
+scripts/populate.sh                      # SB, 2023-2026, three fixtures per year
+scripts/populate.sh SB 2024 --discover   # print the URLs and stop, download nothing
+```
 
-If the crawl cannot find a 2024 link or an SB link, `DiscoveryFailedError`
+It needs Node 22 and nothing else (`just harvest` is the same thing for people
+who have `just`). What it does, in order:
+
+1. **Discovery, per year.** Starts at the origin, prints every candidate link
+   for the year, then every candidate link for the county, and only then
+   downloads — one request every 2 seconds, cached pages skipped. Links to a
+   subdomain of the entry host are followed; the portal has historically served
+   the tables from one.
+2. **Descent.** Follows links from each county page that stay in that page's
+   own directory or below it, because the listings have been split across
+   several pages before. It never follows the navigation back up.
+3. **The record.** Writes `pipeline/raw/harvest.json` mapping each county-year
+   to its cached URLs, so `just normalize` parses those pages and not the
+   archive index it also cached.
+4. **Fixtures.** Copies three pages per year into `pipeline/fixtures/` byte for
+   byte, each with a `.url` sidecar: the largest page, the smallest non-trivial
+   one and the median, which is the best available guess at "structurally
+   different" before a parser exists. `--fixtures <n>` changes the count,
+   `--all-fixtures` stages every page, `--stage-only` re-stages from the cache
+   without touching the network.
+
+A year that cannot be discovered is reported at the end with the links the
+crawler did see, and the other years still run. Every year failing exits
+non-zero.
+
+Then, on any machine:
+
+5. Open the staged files and confirm they are repartizare tables rather than
+   navigation. Commit them and push. The ratchet in
+   `pipeline/test/parse.repartizare.test.ts` now makes `just check` fail until
+   the parser exists — that is intended.
+6. Implement `parseRepartizarePage()` in `pipeline/src/parse/repartizare.ts`
+   against those files, with a test per fixture asserting real rows. Route every
+   text field through `normalizeText()` and every media cell through
+   `parseMediaCell()`; both are already tested. Use `toFiliera()` for the
+   filiera column.
+7. `just normalize <year> SB` for each year, `just emit`, `just check`.
+
+If discovery cannot find a year link or a county link, `DiscoveryFailedError`
 prints every link it did see. That is a signal the site moved, not a reason to
 hardcode a URL template.
 

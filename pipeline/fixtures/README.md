@@ -6,6 +6,11 @@ edit one to make a test pass — a fixture is evidence, not a test double.
 
 ## Adding one
 
+`scripts/populate.sh` (or `just harvest`) does steps 1-3 below in one run and
+stages three pages per year here, named `<county>-<year>-<slug>.html`. Check
+what it picked; it chooses by size, which is the only signal there is before a
+parser exists. By hand:
+
 1. `just fetch <year> <county>` downloads into `pipeline/raw/` (gitignored) and
    prints the URLs it used.
 2. Copy 2-3 *representative* pages here — pick ones that differ from each

@@ -7,6 +7,7 @@ import { crawl } from './crawl.js';
 import { calibrate, CALIBRATION_YEAR, sample, verify } from './evnat/index.js';
 import { DEFAULT_MOCK_SEED, DEFAULT_MOCK_YEARS, writeMock } from './mock/index.js';
 import { emit } from './emit.js';
+import { harvest } from './harvest.js';
 import { normalize } from './normalize.js';
 
 const USAGE = `undeintru pipeline
@@ -15,6 +16,14 @@ const USAGE = `undeintru pipeline
              Download the repartizare pages into pipeline/raw/ (gitignored).
              Throttled to one request every 2s; cached pages are skipped.
              --discover prints the URLs it found and stops.
+
+  harvest    --county <code> [--years 2023,2024,2025,2026] [--seed <url>]
+             [--discover] [--fixtures <n>] [--all-fixtures] [--stage-only]
+             Everything that needs the network, in one run: crawl every year,
+             descend below the county pages, record what belongs where in
+             pipeline/raw/harvest.json, and stage representative pages into
+             pipeline/fixtures/ with their .url sidecars. A year that fails
+             does not stop the others. See scripts/populate.sh.
 
   normalize  --year <year> --county <code> [--fixtures]
              Parse pipeline/raw/ (or pipeline/fixtures/ with --fixtures)
@@ -71,6 +80,23 @@ function requiredNumber(flags: Flags, name: string): number {
   return value;
 }
 
+/** Parse a `--years 2023,2024` list, or fall back to the default. */
+function yearList(raw: string | true | undefined, fallback: readonly number[]): number[] {
+  if (typeof raw !== 'string') return [...fallback];
+  return raw.split(',').map((y) => {
+    const value = Number(y.trim());
+    if (!Number.isInteger(value)) throw new Error(`--years: bad year ${y}`);
+    return value;
+  });
+}
+
+/**
+ * Every year the current media formula covers. 2023 is the first year the
+ * cutoffs are comparable with today's (see `areYearsComparable`); earlier
+ * years would be fetched for nothing.
+ */
+const DEFAULT_HARVEST_YEARS: readonly number[] = [2023, 2024, 2025, 2026];
+
 function requiredString(flags: Flags, name: string): string {
   const raw = flags.options.get(name);
   if (typeof raw !== 'string' || raw === '') throw new Error(`Missing --${name}`);
@@ -92,6 +118,24 @@ async function main(argv: readonly string[]): Promise<void> {
       });
       return;
     }
+    case 'harvest': {
+      const seed = flags.options.get('seed');
+      const rawFixtures = flags.options.get('fixtures');
+      const fixtureCount = typeof rawFixtures === 'string' ? Number(rawFixtures) : undefined;
+      if (fixtureCount !== undefined && (!Number.isInteger(fixtureCount) || fixtureCount < 0)) {
+        throw new Error(`--fixtures must be a non-negative integer, got ${String(rawFixtures)}`);
+      }
+      await harvest({
+        county: requiredString(flags, 'county').toUpperCase(),
+        years: yearList(flags.options.get('years'), DEFAULT_HARVEST_YEARS),
+        discoverOnly: flags.options.get('discover') === true,
+        stageOnly: flags.options.get('stage-only') === true,
+        allFixtures: flags.options.get('all-fixtures') === true,
+        ...(fixtureCount !== undefined ? { fixtureCount } : {}),
+        ...(typeof seed === 'string' ? { seed } : {}),
+      });
+      return;
+    }
     case 'normalize': {
       await normalize({
         year: requiredNumber(flags, 'year'),
@@ -105,15 +149,7 @@ async function main(argv: readonly string[]): Promise<void> {
       return;
     }
     case 'mock': {
-      const rawYears = flags.options.get('years');
-      const years =
-        typeof rawYears === 'string'
-          ? rawYears.split(',').map((y) => {
-              const value = Number(y.trim());
-              if (!Number.isInteger(value)) throw new Error(`--years: bad year ${y}`);
-              return value;
-            })
-          : [...DEFAULT_MOCK_YEARS];
+      const years = yearList(flags.options.get('years'), DEFAULT_MOCK_YEARS);
       const rawSeed = flags.options.get('seed');
       await writeMock({
         county: requiredString(flags, 'county').toUpperCase(),
