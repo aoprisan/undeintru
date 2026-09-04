@@ -14,9 +14,10 @@
  *
  * ## How to implement it
  *
- * 1. `just fetch 2024 SB` — downloads into `pipeline/raw/` and prints the URLs.
- * 2. Copy 2-3 representative pages into `pipeline/fixtures/`, keeping the
- *    original filename plus a `.url` sidecar naming where each came from.
+ * 1. `scripts/populate.sh` on a machine that reaches the site — downloads every
+ *    year into `pipeline/raw/`, prints the URLs, and stages fixtures.
+ * 2. Check the 2-3 pages it staged in `pipeline/fixtures/`, each with a `.url`
+ *    sidecar naming where it came from, and commit them.
  * 3. Write the extraction below against those files, and a test per fixture in
  *    `pipeline/test/parse.repartizare.test.ts` asserting real rows.
  * 4. Route every text field through `normalizeText`, every media cell through
@@ -61,7 +62,7 @@ export class ParserNotImplementedError extends Error {
     super(
       `No repartizare parser yet (asked to parse ${sourceUrl}).\n` +
         'pipeline/fixtures/ is empty, so there is no real markup to write one against. ' +
-        'Run `just fetch 2024 SB`, commit 2-3 pages as fixtures, then implement ' +
+        'Run `scripts/populate.sh`, commit the fixtures it stages, then implement ' +
         'parseRepartizarePage in pipeline/src/parse/repartizare.ts.',
     );
     this.name = 'ParserNotImplementedError';

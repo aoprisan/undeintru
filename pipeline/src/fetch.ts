@@ -73,7 +73,7 @@ export interface RawPage {
   readonly cached: boolean;
 }
 
-type ManifestEntry = Omit<RawPage, 'html' | 'cached'>;
+export type ManifestEntry = Omit<RawPage, 'html' | 'cached'>;
 
 /** Stable, filesystem-safe name for a URL. */
 function cacheKey(url: string): string {
@@ -84,7 +84,8 @@ function manifestPath(dir: string): string {
   return join(dir, 'manifest.json');
 }
 
-async function readManifest(dir: string): Promise<Record<string, ManifestEntry>> {
+/** Everything the cache holds, keyed by URL. Empty when nothing was downloaded. */
+export async function readManifest(dir: string = RAW_DIR): Promise<Record<string, ManifestEntry>> {
   try {
     const text = await readFile(manifestPath(dir), 'utf8');
     return JSON.parse(text) as Record<string, ManifestEntry>;
@@ -143,9 +144,12 @@ export class Downloader {
    * @throws NetworkDisabledError when offline mode is on and the page is not cached.
    * @throws FetchFailedError on a non-2xx response or a transport failure.
    */
-  async get(url: string): Promise<RawPage> {
+  async get(requested: string): Promise<RawPage> {
     await this.#load();
 
+    // Key the cache by the canonical form, so `https://host` and
+    // `https://host/` are one page rather than two downloads.
+    const url = new URL(requested).href;
     const cached = this.#manifest[url];
     if (cached) {
       try {
@@ -201,16 +205,33 @@ export class Downloader {
 // --- link discovery ---------------------------------------------------------
 
 /**
- * Pull every same-origin link out of a page.
+ * Is `host` the same site as `base`: the same host, or a subdomain of it in
+ * either direction? `static.admitere.edu.ro` belongs with `admitere.edu.ro`;
+ * `www.edu.ro` does not, since it is a sibling and not a parent or child.
+ */
+export function sameSite(host: string, base: string): boolean {
+  const a = host.toLowerCase();
+  const b = base.toLowerCase();
+  return a === b || a.endsWith(`.${b}`) || b.endsWith(`.${a}`);
+}
+
+/**
+ * Pull every same-site link out of a page.
  *
  * This is deliberately structure-agnostic: it exists to *discover* what the
  * site looks like, so it must not assume anything about the markup. The
  * row parser is a different matter — that one is written against committed
  * fixtures, never against a guess.
+ *
+ * "Same site" rather than "same origin": the portal has historically served
+ * the actual tables from a subdomain of the entry host, and a discovery step
+ * that silently dropped those links would report "no links found" for a
+ * page full of them.
  */
 export function extractLinks(html: string, baseUrl: string): { url: string; text: string }[] {
   const out = new Map<string, string>();
   const anchor = /<a\b[^>]*\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s">]+))[^>]*>([\s\S]*?)<\/a>/gi;
+  const baseHost = new URL(baseUrl).hostname;
 
   for (const m of html.matchAll(anchor)) {
     const href = m[1] ?? m[2] ?? m[3] ?? '';
@@ -222,7 +243,7 @@ export function extractLinks(html: string, baseUrl: string): { url: string; text
     } catch {
       continue;
     }
-    if (url.origin !== new URL(baseUrl).origin) continue;
+    if (!/^https?:$/.test(url.protocol) || !sameSite(url.hostname, baseHost)) continue;
     url.hash = '';
 
     const text = (m[4] ?? '')

@@ -27,6 +27,12 @@ preview:
 fetch year county="SB":
     npm run --workspace pipeline --silent cli -- fetch --year {{year}} --county {{county}}
 
+# Everything that needs the network, in one run: crawl every year, descend below the
+# county pages, and stage representative pages into pipeline/fixtures/ with .url sidecars.
+# Run this on a machine that can reach admitere.edu.ro; see scripts/populate.sh.
+harvest county="SB" years="2023,2024,2025,2026" *flags="":
+    npm run --workspace pipeline --silent cli -- harvest --county {{county}} --years {{years}} {{flags}}
+
 # Parse pipeline/raw/ into normalized rows -> pipeline/normalized/<year>/<county>.json
 normalize year county="SB":
     npm run --workspace pipeline --silent cli -- normalize --year {{year}} --county {{county}}

@@ -62,7 +62,7 @@ describe('repartizare parser', () => {
       expect(() => parseRepartizarePage('<html></html>', ctx)).toThrow(
         /admitere\.edu\.ro\/example/,
       );
-      expect(() => parseRepartizarePage('<html></html>', ctx)).toThrow(/just fetch 2024 SB/);
+      expect(() => parseRepartizarePage('<html></html>', ctx)).toThrow(/scripts\/populate\.sh/);
     });
   } else {
     it('has a source URL sidecar for every fixture', async () => {

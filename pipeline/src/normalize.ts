@@ -10,6 +10,7 @@
 import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
+import { harvestKey, readHarvest } from './harvest.js';
 import { FIXTURES_DIR, NORMALIZED_DIR, RAW_DIR } from './paths.js';
 import { parseRepartizarePage } from './parse/repartizare.js';
 import type { AdmissionRow, Provenance } from './schema.js';
@@ -35,12 +36,23 @@ export interface PageInput {
   readonly html: string;
 }
 
+/** Which county-year's pages to load out of the shared cache. */
+export interface RawScope {
+  readonly year: number;
+  readonly county: string;
+}
+
 /**
- * Every page cached by `just fetch`, in manifest order.
+ * Pages cached by `just fetch` / `just harvest`, in manifest order.
+ *
+ * The cache is shared by every crawl, so it also holds the site root and the
+ * year archive pages. When `just harvest` recorded which URLs belong to the
+ * requested county-year in `harvest.json`, only those are returned; without
+ * a record (a plain `just fetch`) every cached page is, as before.
  *
  * @returns an empty array when nothing has been downloaded yet.
  */
-export async function loadRawPages(dir: string = RAW_DIR): Promise<PageInput[]> {
+export async function loadRawPages(dir: string = RAW_DIR, scope?: RawScope): Promise<PageInput[]> {
   let manifest: Record<string, ManifestEntry>;
   try {
     manifest = JSON.parse(await readFile(join(dir, 'manifest.json'), 'utf8')) as Record<
@@ -51,8 +63,18 @@ export async function loadRawPages(dir: string = RAW_DIR): Promise<PageInput[]> 
     return [];
   }
 
+  let entries = Object.values(manifest);
+  if (scope) {
+    const record = await readHarvest(dir);
+    const dataset = record.datasets[harvestKey(scope.year, scope.county)];
+    if (dataset) {
+      const wanted = new Set(dataset.pages);
+      entries = entries.filter((e) => wanted.has(e.url));
+    }
+  }
+
   const pages: PageInput[] = [];
-  for (const entry of Object.values(manifest)) {
+  for (const entry of entries) {
     pages.push({ url: entry.url, html: await readFile(join(dir, entry.file), 'utf8') });
   }
   return pages;
@@ -145,7 +167,7 @@ export interface NormalizeOptions {
 export async function normalize(options: NormalizeOptions): Promise<string> {
   const { year, county, useFixtures = false, outDir = NORMALIZED_DIR } = options;
 
-  const pages = useFixtures ? await loadFixturePages() : await loadRawPages();
+  const pages = useFixtures ? await loadFixturePages() : await loadRawPages(RAW_DIR, { year, county });
   if (pages.length === 0) {
     throw new Error(
       useFixtures
