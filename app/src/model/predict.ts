@@ -77,9 +77,14 @@ export class ModelError extends Error {
   }
 }
 
-/** Stable identity for a specialization across years. */
+/** Identity within one admission year. */
 export function specKey(row: Pick<AdmissionRow, 'schoolCode' | 'specId'>): string {
   return `${row.schoolCode}/${row.specId}`;
+}
+
+/** A lowest admitted mark does not establish a competitive threshold with vacancies. */
+export function hasVacancies(row: AdmissionRow): boolean {
+  return row.occupiedSeats !== undefined && row.occupiedSeats < row.seats;
 }
 
 // --- statistics -------------------------------------------------------------
@@ -149,7 +154,7 @@ export interface FittedModel {
   readonly sigma: number;
   /** County-wide year-shift spread. */
   readonly tau: number;
-  /** Total predictive spread, `sqrt(tau^2 + sigma^2)`. */
+  /** Predictive spread over targetYear - baseYear annual increments. */
   readonly sd: number;
   /** County-wide shifts actually observed in the history, oldest first. */
   readonly observedShifts: readonly ObservedShift[];
@@ -175,6 +180,7 @@ export function fitCutoffModel(
   history: readonly CountyDataset[],
   targetYear: number,
 ): FittedModel {
+  if (!Number.isInteger(targetYear)) throw new ModelError('targetYear must be an integer');
   if (history.length === 0) throw new ModelError('cannot fit a model with no history');
 
   const counties = new Set(history.map((d) => d.county));
@@ -224,12 +230,31 @@ export function fitCutoffModel(
     const curr = sorted[i];
     if (!prev || !curr || curr.year !== prev.year + 1) continue; // only adjacent years
 
-    const prevByKey = new Map(prev.rows.map((r) => [specKey(r), r]));
+    // Admission option codes are reassigned each year (including SB 2026).
+    // Match the actual course; omit ambiguous identities instead of guessing.
+    const identity = (row: AdmissionRow): string => JSON.stringify([
+      row.schoolCode, row.specLabel, row.profile, row.filiera, row.limba,
+    ].map((part) => part.normalize('NFC').toLocaleLowerCase('ro-RO')
+      .replace(/[şţ]/g, (letter) => letter === 'ş' ? 'ș' : 'ț')));
+    const uniqueRows = (rows: readonly AdmissionRow[]): Map<string, AdmissionRow> => {
+      const matches = new Map<string, AdmissionRow>();
+      const duplicates = new Set<string>();
+      for (const row of rows) {
+        const key = identity(row);
+        if (matches.has(key)) duplicates.add(key);
+        matches.set(key, row);
+      }
+      for (const key of duplicates) matches.delete(key);
+      return matches;
+    };
+    const prevByKey = uniqueRows(prev.rows);
+    const currentByKey = uniqueRows(curr.rows);
     const deltas: number[] = [];
-    for (const row of curr.rows) {
-      const before = prevByKey.get(specKey(row));
-      // A spec that did not fill has no cutoff, so it contributes no delta.
+    for (const [key, row] of currentByKey) {
+      const before = prevByKey.get(key);
+      // Missing or nonbinding marks contribute no competitive-cutoff delta.
       if (!before || before.lastMedia === null || row.lastMedia === null) continue;
+      if (hasVacancies(row) || hasVacancies(before)) continue;
       if (row.vocational || before.vocational) continue; // aptitude-gated, different process
       deltas.push(row.lastMedia - before.lastMedia);
     }
@@ -269,7 +294,9 @@ export function fitCutoffModel(
 
   const sigma = sigmaEstimate ?? SIGMA_PRIOR;
   const tau = tauEstimate ?? TAU_PRIOR;
-  const sd = Math.max(MIN_SD, corrected ?? Math.hypot(tau, sigma));
+  // Independent annual increments in the random-walk model accumulate variance.
+  const sd = Math.max(MIN_SD, corrected ?? Math.hypot(tau, sigma)) *
+    Math.sqrt(targetYear - latest.year);
 
   return {
     county: latest.county,
@@ -303,7 +330,7 @@ export type Prediction =
     }
   | {
       readonly kind: 'unavailable';
-      readonly reason: 'vocational' | 'no-history';
+      readonly reason: 'vocational' | 'no-history' | 'no-cutoff';
     };
 
 /**
@@ -328,7 +355,8 @@ export function predict(
   const row = model.base.get(key);
   if (!row) return { kind: 'unavailable', reason: 'no-history' };
   if (row.vocational) return { kind: 'unavailable', reason: 'vocational' };
-  if (row.lastMedia === null) return { kind: 'open' };
+  if (hasVacancies(row)) return { kind: 'open' };
+  if (row.lastMedia === null) return { kind: 'unavailable', reason: 'no-cutoff' };
 
   const cutoff = row.lastMedia;
   const sd = model.sd;

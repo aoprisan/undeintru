@@ -42,6 +42,10 @@ normalize year county="SB":
 mock county="SB":
     npm run --workspace pipeline --silent cli -- mock --county {{county}}
 
+# Normalize the complete committed official JSON archive snapshots, offline.
+archive:
+    node --import tsx pipeline/src/cli.ts archive
+
 # Emit validated public data -> app/public/data/v1/
 emit:
     npm run --workspace pipeline --silent cli -- emit

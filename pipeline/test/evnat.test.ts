@@ -105,7 +105,7 @@ describe('the marks model against real candidates — Evaluarea Națională 2026
     const schoolMedia = num(row[0]);
     const actual = num(row[3]);
     const years: YearlyMedia[] = GRADES.map((grade) => ({ grade, media: schoolMedia }));
-    const prediction = predictMarks({ currentGrade: 8, romana: years, matematica: years });
+    const prediction = predictMarks({ currentGrade: 8, school: years, takesMotherTongue: false });
     return {
       error: prediction.media.mean - actual,
       covered:
@@ -144,7 +144,7 @@ describe('the marks model against real candidates — Evaluarea Națională 2026
     for (const row of rows) {
       const schoolMedia = num(row[0]);
       const years: YearlyMedia[] = GRADES.map((grade) => ({ grade, media: schoolMedia }));
-      const p = predictMarks({ currentGrade: 8, romana: years, matematica: years });
+      const p = predictMarks({ currentGrade: 8, school: years, takesMotherTongue: false });
       expect(p.media.mean).toBeLessThan(schoolMedia);
     }
   });

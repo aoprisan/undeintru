@@ -1,3 +1,9 @@
+> Updated after prediction review: inputs are overall annual school averages,
+> equally weighted. Mother-tongue-paper candidates are explicitly unsupported.
+> Numerical backtest tables below document the earlier recency-weighted version;
+> they are not fresh measurements of this revision. Current regression tests
+> score the revised model against the committed real and synthetic fixtures.
+
 # The marks model
 
 ## The question
@@ -20,7 +26,7 @@ average candidate with a school 9 scored **6.95**.
 Chosen because every parent can read them off the catalog:
 
 - the grade the kid is in now (V–VIII),
-- the yearly school media (medie anuală) in **română** and **matematică** for
+- the overall annual school average across **all subjects** for
   each grade so far,
 - optionally, for 8th graders, the **simulare** marks.
 
@@ -179,15 +185,12 @@ class V to an 8th grader with a simulare, which the suite asserts directly.
 
 ## What is still not established
 
-**The per-subject link.** The published file records `MEDIA V-VIII`, the
-gimnaziu average **over all subjects** — one number per candidate. It does not
-record per-subject school medii. So the table is indexed by a kid's *overall*
-average, while the model is handed their română and matematică medii
-separately, and applying one to the other assumes the two track each other.
-That is this model's last unmeasured joint. For a kid whose subject medii are
-lopsided the two predictions will be further apart than the data can vouch
-for. Closing it needs a source pairing per-subject school medii with exam
-marks, which no published dataset currently is.
+**Input scope.** The interface now requests overall annual school averages,
+matching the calibration's conditioning variable. Both subjects use their
+arithmetic mean. Partial records, future drift, and simulare still rely on
+assumptions beyond the published overall V–VIII average. The estimator refuses
+mother-tongue-paper candidates because the calibration excludes them; an
+official admission average can still be entered directly.
 
 **Per-school and per-county inflation.** The table is a single national
 calibration, and generosity varies by school. The misspecification test makes

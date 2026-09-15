@@ -103,8 +103,8 @@ taking the gimnaziu average as the exam media runs **1.96 points hot**. The
 average kid with a school 9 scored **6.95**.
 
 `app/src/model/marks.ts` predicts the Evaluarea Națională media from what a
-parent actually has: the kid's current grade (V–VIII), the yearly school medii
-in română and matematică so far, and optionally the simulare marks for 8th
+parent actually has: the kid's current grade (V–VIII), the overall annual averages
+across all subjects so far, and optionally the simulare marks for 8th
 graders. Its calibration is **measured, not assumed** — a table of what
 candidates at each school level actually scored, built from the ministry's own
 published results. Uncertainty grows with every year still to run before the
@@ -125,15 +125,26 @@ specification, measurements and limits in [`docs/MARKS.md`](docs/MARKS.md).
 
 ## Real data, and what is still synthetic
 
-The cutoffs and the exam results come from different places, and only one of
-them is reachable.
+The published cutoffs are now official Sibiu computerized-allocation results:
+117 courses in 2026 and 74 in 2025, from the ministry's static archive. The
+complete source snapshots and URL sidecars are committed under
+`pipeline/fixtures/admitere/`. The importer preserves bilingual and dual
+courses and missing cutoffs. The 27 unambiguous course matches that filled in both
+years supply the model's observed changes; course codes were reassigned
+in 2026, so matching uses school and course details.
 
 | | source | real? |
 | --- | --- | --- |
-| Cutoffs per school and specialization | admitere.edu.ro | **no** — synthetic, bannered |
+| Cutoffs per school and specialization, SB 2025–2026 | static.admitere.edu.ro | **yes**, 191 course-year records |
 | School→exam calibration | data.gov.ro, EN 2025 | **yes**, 143,183 candidates |
 | The media formula, both branches | verified against EN 2025 | **yes**, all 152,235 rows |
 | Marks-model backtest in CI | data.gov.ro, EN 2026 | **yes**, out of sample |
+
+The synthetic 2023–2024 datasets have been removed from publication. Earlier
+complete official allocation tables have not been recovered. Two seasons
+provide limited history; this is not a validation of admission probabilities
+against a held-out real year. Aptitude-gated and later-round admissions are
+outside the downloaded tables.
 
 `pipeline/src/evnat/` reads the ministry's published Evaluarea Națională
 workbooks (CC-BY 4.0). They are .xlsx, one sheet, 135 MB inflated, so it ships
@@ -173,7 +184,8 @@ the schema from citing any source URL, uses school names no Romanian county has
 generated cutoff that reads as official is the worst failure this app can have,
 so the marking is enforced at every layer rather than left to a README.
 
-**The data currently published in `app/public/data/v1/` is synthetic.**
+**The data currently published in `app/public/data/v1/` is official.**
+Running `just mock` and `just emit` replaces it with explicitly synthetic data.
 
 ## Diacritics
 
@@ -239,32 +251,38 @@ one on its own. To check a deploy by hand, add a query string
 
 ## Status
 
-See [`docs/STATUS.md`](docs/STATUS.md). Short version: the scaffold, the shared
-schema, the emit path, both prediction models (admission and marks), both
-hard-rule utilities and the real exam-results pipeline are done and tested —
-166 tests, typecheck and lint clean.
-
-The repartizare fixtures and the HTML parser are not, and that is now the only
-thing outstanding. Egress works — the real exam results came in over it — but
-`admitere.edu.ro` itself does not answer on either port from anywhere we can
-reach, so there is still no real markup to write the parser against, and
-guessing at it was never an option. Synthetic cutoffs stand in, behind a
-banner, until the host comes back.
+See [`docs/STATUS.md`](docs/STATUS.md) for current coverage and limitations.
 
 ## Populating the real cutoffs
 
-The network half of that job is one command, to run on a machine that can
-reach the site:
+Rebuild the complete committed official snapshots offline:
 
 ```
-scripts/populate.sh              # SB, 2023–2026; needs Node 22, nothing else
-scripts/populate.sh SB 2024 --discover   # print the URLs it would follow and stop
+node --import tsx pipeline/src/cli.ts archive
+node --import tsx pipeline/src/cli.ts emit
 ```
 
-It crawls each year discovery-first (printing every link it follows), descends
-one level below the county pages, records which cached page belongs to which
-county-year in `pipeline/raw/harvest.json`, and stages three representative
-pages per year into `pipeline/fixtures/` with their `.url` sidecars. A year the
-site does not have yet is reported and skipped. Commit and push the fixtures;
-`just check` then fails on purpose until the parser exists, which is the next
-step and the only one left — see [`docs/STATUS.md`](docs/STATUS.md).
+Or use `just archive` then `just emit`. Source URLs, column mappings, counts,
+and refresh instructions are in
+[`pipeline/fixtures/admitere/README.md`](pipeline/fixtures/admitere/README.md).
+The static portal serves JSON behind an empty HTML table; the JSON importer
+is fixture-tested. The older `harvest` / `normalize` HTML-only workflow remains
+available for other archive formats, but its HTML table parser is still a stub.
+
+### Prediction review fixes
+
+Occupied-seat counts are retained. Courses with vacancies show historical
+availability without a numeric probability and do not count as cleared
+competitive thresholds. Missing marks with unknown occupancy are unavailable.
+The current Sibiu data has 56 courses with vacancies and 61 competitive rows.
+
+The marks estimator requests overall annual averages, uses their arithmetic
+mean, and requires confirmation that the pupil does not take the mother-tongue
+paper. Its calibration excludes those candidates; they can enter an official
+admission average directly. Partial records and simulare adjustments remain
+prior-based, with an explicitly indicative interval.
+
+For estimated marks the admission year follows the selected grade. The cutoff
+model accumulates variance across annual increments, so an h-year forecast
+uses sqrt(h) times the one-year standard deviation. Direct media entry resets
+the forecast to the next available admission cycle.

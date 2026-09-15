@@ -239,6 +239,7 @@ export function generateHistory(options: GenerateOptions): GeneratedHistory {
         filiera: slot.template.filiera,
         limba: 'Româna',
         seats: slot.seats,
+        occupiedSeats: unfilled ? 0 : slot.seats,
         lastMedia: unfilled ? null : clampMedia(raw),
         vocational: slot.template.filiera === 'vocationala',
       };

@@ -13,12 +13,8 @@
  *
  *     E[exam mark in a subject | overall school average]
  *
- * and *not* `E[exam mark in română | school média in română]`, which is what
- * the model's per-subject calibration line describes. The file simply does not
- * carry per-subject school medii. Estimating one and installing it as the
- * other would be the same class of mistake as writing the HTML parser against
- * imagined markup, so the two are kept apart: this table is published as its
- * own estimator, and the per-subject constants stay labelled as priors.
+ * The app therefore supplies overall annual averages for both subjects.
+ * It does not substitute per-subject school marks for this conditioning input.
  *
  * ## Why a table and not a line
  *

@@ -52,9 +52,11 @@ export interface AdmissionRow {
   readonly limba: string;
   /** Seats offered (locuri). Non-negative integer. */
   readonly seats: number;
+  /** Occupied seats, when published. Missing means occupancy is unknown. */
+  readonly occupiedSeats?: number;
   /**
    * Media of the last admitted candidate — the cutoff. `null` when the
-   * specialization did not fill, or no cutoff was published.
+   * source published no last-admitted mark. Occupancy is tracked separately.
    *
    * Two decimals, TRUNCATED (see `pipeline/src/util/media.ts`). Only
    * comparable against other rows with the same `year` epoch.
@@ -227,7 +229,13 @@ function checkRow(c: Checker, path: string, value: unknown): void {
   c.str(`${path}.specLabel`, row['specLabel']);
   c.str(`${path}.profile`, row['profile'], { allowEmpty: true });
   c.str(`${path}.limba`, row['limba'], { allowEmpty: true });
-  c.int(`${path}.seats`, row['seats'], { min: 0 });
+  const seats = c.int(`${path}.seats`, row['seats'], { min: 0 });
+  if (row['occupiedSeats'] !== undefined) {
+    const occupied = c.int(`${path}.occupiedSeats`, row['occupiedSeats'], { min: 0 });
+    if (occupied !== undefined && seats !== undefined && occupied > seats) {
+      c.fail(`${path}.occupiedSeats`, 'occupied seats exceed capacity');
+    }
+  }
 
   const filiera = row['filiera'];
   if (!isFiliera(filiera)) {

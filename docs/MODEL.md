@@ -118,8 +118,7 @@ makes the results a fair test of the **machinery** — the estimator recovers
 what it is given, the intervals cover what they claim, the probabilities are
 calibrated, it beats the naive baseline.
 
-It says nothing about accuracy on Romanian high schools. No real cutoff has
-ever been through this model.
+It says nothing about accuracy on Romanian high schools. The metrics above measure synthetic validation, not real-world accuracy.
 
 The suite makes that limit concrete rather than leaving it as a caveat. One
 test deliberately misspecifies the world by giving cutoffs a real upward drift
@@ -141,3 +140,32 @@ Once several years of real cutoffs are in hand:
    currently deliberately wide guesses.
 4. If cutoffs do trend, add a drift term — but only if it survives a backtest,
    not because a plot looks like it slopes.
+
+## Published real history (2026-09-15)
+
+The app now fits on official Sibiu 2025 and 2026 allocation tables. Option
+codes were reassigned in 2026, so cross-year matching uses school code plus
+course label, profile, track, and teaching language (including bilingual and
+dual variants in the label). Case and cedilla differences are normalized;
+ambiguous identities are excluded. Within one year, the official option code
+still identifies the row used for prediction.
+
+There are 27 unambiguous matched courses filled in both years, supplying one
+annual transition. This is enough to observe pooled changes but does not
+supply a held-out real year for the validation described above. Technical
+course names changed substantially and are not guessed to be equivalent.
+The archive's previous-year column is not used; each cutoff comes from its
+own year's allocation response.
+
+## Vacancy and horizon semantics
+
+A published lowest admitted mark is a competitive cutoff only when the course
+filled. `occupiedSeats < seats` returns historical availability (`open`) without
+a probability. Such rows are excluded from fitted annual changes and from the
+UI's cleared-threshold count. Missing marks without occupancy evidence return
+`unavailable`, never an inferred vacancy.
+
+The one-year spread is multiplied by `sqrt(targetYear - baseYear)`, consistent
+with independent annual increments in the stated random walk. The interface
+carries the selected school grade into the admission year. Future course
+availability and annual-independence assumptions remain uncertain.

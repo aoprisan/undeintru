@@ -10,7 +10,7 @@
  * ## Inputs
  *
  * - the grade the kid is in now (V–VIII),
- * - the yearly school media in română and matematică for each grade so far,
+ * - the overall annual school average across all subjects for each grade so far,
  * - optionally, for 8th graders, the simulare marks.
  *
  * These were chosen because they are what every parent can read off the
@@ -24,7 +24,7 @@
  * scored, on average, by candidates whose gimnaziu record sat at each level —
  * measured on the 143,183 candidates in the published Evaluarea Națională
  * 2025 results, together with the spread around that average. A prediction
- * starts as a recency-weighted summary of the school medii a parent has, read
+ * starts as a equally weighted summary of the school medii a parent has, read
  * off that table.
  *
  * Three things are then layered on, in variance:
@@ -91,8 +91,10 @@ export interface SimulareMarks {
 /** Everything the model consumes about one kid. */
 export interface StudentRecord {
   readonly currentGrade: SchoolGrade;
-  readonly romana: readonly YearlyMedia[];
-  readonly matematica: readonly YearlyMedia[];
+  /** Overall annual averages across all subjects, never per-subject averages. */
+  readonly school: readonly YearlyMedia[];
+  /** The calibration excludes candidates taking the mother-tongue paper. */
+  readonly takesMotherTongue: boolean;
   readonly simulare?: SimulareMarks;
 }
 
@@ -130,20 +132,13 @@ export class MarksError extends Error {
  * parent is looking, the estimator interpolates the measured means and clamps
  * outside the range they cover.
  *
- * ## The one link still unmeasured
+ * ## Inputs and scope
  *
- * The published file records `MEDIA V-VIII`, the gimnaziu average **over all
- * subjects** — one number per candidate. It does not record per-subject school
- * medii. So the knots below are indexed by a kid's *overall* average, while
- * this model is handed their *română* and *matematică* medii separately.
- *
- * Applying the table to a per-subject media therefore assumes that media
- * tracks the kid's overall average. That assumption is this model's last
- * unmeasured joint, and it is stated rather than buried: for a kid whose
- * subject medii are lopsided — strong in one, weak in the other — the two
- * subject predictions will be further apart than the data behind this table
- * can vouch for. Closing it needs a source pairing per-subject school medii
- * with exam marks, which no published dataset currently is.
+ * Both subject predictions use the same overall annual school averages.
+ * A complete record uses their arithmetic mean, matching MEDIA V–VIII.
+ * Partial records and simulare adjustments still depend on prior assumptions.
+ * Candidates sitting the mother-tongue paper are excluded from this calibration
+ * and must use an official admission average instead of this estimator.
  */
 export interface CalibrationKnot {
   /** Gimnaziu average V–VIII. */
@@ -300,9 +295,6 @@ export const SUBJECT_RHO = 0.443;
 export const SIMULARE_UPLIFT = 0.35;
 export const SIMULARE_SD = 0.45;
 
-/** Each earlier school year counts half the one after it. */
-const RECENCY_DECAY = 0.5;
-
 const GRADES: readonly SchoolGrade[] = [5, 6, 7, 8];
 
 const clamp = (v: number): number => Math.min(GRADE_MAX, Math.max(GRADE_MIN, v));
@@ -320,7 +312,7 @@ function assertMark(value: number, what: string): void {
 
 function assertSubjectHistory(
   entries: readonly YearlyMedia[],
-  subject: Subject,
+  subject: string,
   currentGrade: SchoolGrade,
 ): void {
   if (entries.length === 0) {
@@ -348,7 +340,7 @@ function assertSubjectHistory(
 
 export interface SubjectEstimate {
   readonly subject: Subject;
-  /** Recency-weighted summary of the yearly school medii. */
+  /** Equally weighted summary of the yearly school medii. */
   readonly schoolMedia: number;
   /** Predicted exam mark, clamped to the grading scale. */
   readonly mean: number;
@@ -386,7 +378,7 @@ interface SubjectResult {
  * catalog noise `c`. A weighted summary of the years a parent actually has
  * carries `c^2 * sum(w^2) / (sum w)^2` instead. The difference is what this
  * model owes on top — zero for a flat four-year record, largest for a single
- * year, and in between for a recency-weighted one.
+ * year, and in between for a equally weighted one.
  *
  * Carried onto the exam scale by the local slope, since `c` is a school-scale
  * quantity and everything else here is in exam points.
@@ -413,8 +405,8 @@ function estimateSubject(
   if (!last) throw new MarksError(`${subject}: at least one yearly media is required`);
   const latestGrade = last.grade;
 
-  // Recency weights: the newest year speaks loudest about who the kid is now.
-  const weights = sorted.map((e) => RECENCY_DECAY ** (latestGrade - e.grade));
+  // MEDIA V–VIII averages annual overall averages with equal weights.
+  const weights = sorted.map(() => 1);
   const total = weights.reduce((a, w) => a + w, 0);
   const schoolMedia =
     sorted.reduce((acc, e, i) => acc + e.media * (weights[i] ?? 0), 0) / total;
@@ -504,8 +496,10 @@ export function predictMarks(record: StudentRecord): MarksPrediction {
   if (!GRADES.includes(currentGrade)) {
     throw new MarksError(`currentGrade ${String(currentGrade)} is not one of V..VIII`);
   }
-  assertSubjectHistory(record.romana, 'romana', currentGrade);
-  assertSubjectHistory(record.matematica, 'matematica', currentGrade);
+  if (typeof record.takesMotherTongue !== 'boolean' || record.takesMotherTongue) {
+    throw new MarksError('Mother-tongue candidates are not supported by this calibration');
+  }
+  assertSubjectHistory(record.school, 'school', currentGrade);
 
   const hasSimulare =
     simulare !== undefined &&
@@ -518,8 +512,8 @@ export function predictMarks(record: StudentRecord): MarksPrediction {
   if (simulare?.romana !== undefined) assertMark(simulare.romana, 'simulare romana');
   if (simulare?.matematica !== undefined) assertMark(simulare.matematica, 'simulare matematica');
 
-  const romana = estimateSubject('romana', record.romana, simulare?.romana);
-  const matematica = estimateSubject('matematica', record.matematica, simulare?.matematica);
+  const romana = estimateSubject('romana', record.school, simulare?.romana);
+  const matematica = estimateSubject('matematica', record.school, simulare?.matematica);
 
   // media = (romana + matematica) / 2, with the subject errors correlated:
   // var = (sd_r^2 + sd_m^2 + 2 rho sd_r sd_m) / 4.

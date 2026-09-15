@@ -1,0 +1,378 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="">
+    <link href="../../style/bootstrap.min.css" rel="stylesheet" >
+    <link href="../../style/main.css" rel="stylesheet" >
+    <link href="../../style/dashboard.css" rel="stylesheet">
+    <link href="../../style/jquery.dynatable.css" rel="stylesheet" >
+
+    <title>SIBIU</title>
+</head>
+
+<body>
+<nav class="navbar sticky-top" style="background: #fff">
+    <img src="../../style/images/title.gif"/>
+    <img src="../../style/images/sigle.jpg"/>
+    <img src="../../style/images/sigla-men.png"/>
+</nav>
+<nav class=" sticky-top " style="top:78px">
+    <ol class="breadcrumb" style="border-top: 1px solid #ccc; border-bottom: 1px solid #ccc;">
+        <li class="breadcrumb-item"><a href="../../index.html">Admitere</a></li>
+        <li class="breadcrumb-item"><a href="../index.html">Repartizare</a></li>
+        <li class="breadcrumb-item" aria-current="page">SIBIU</li>
+    </ol>
+</nav>
+
+
+<div class="container-fluid">
+    <div class="row">
+        <nav class="col-md-2 d-none d-md-block bg-light sidebar">
+
+            <div class="sidebar-sticky">
+                <ul class="nav flex-column" role="tablist">
+                    <li class="nav-item">
+                        <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+                            <span>Statistici nivel județ</span>
+                        </h6>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" data-toggle="tab" href="#candidate" role="tab" aria-controls="candidate"
+                           data-api-source="data/candidate"
+                           data-api-target="#candidate-list">
+                            <span data-feather="users"></span>Candidați<span class="sr-only">(current)</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#specialization" role="tab" aria-controls="specialization"
+                           data-api-source="data/specialization"
+                           data-api-target="#specialization-list">
+                            <span data-feather="zap"></span>
+                            Specializări
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab"
+                           href="#highschool"
+                           role="tab"
+                           aria-controls="highschool"
+                           data-api-source="data/highschool"
+                           data-api-target="#highschool-list">
+                            <span data-feather="zap"></span>
+                            Licee
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#school" role="tab" aria-controls="school"
+                           data-api-source="data/school"
+                           data-api-target="#school-list">
+                            <span data-feather="zap"></span>
+                            Școli
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#empty-seats" role="tab" aria-controls="empty-seats"
+                           data-api-source="data/empty-seats"
+                           data-api-target="#empty-seats-list">
+                            <span data-feather="zap"></span>
+                            Locuri neocupate
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <h6 class="sidebar-heading d-flex justify-content-between align-items-center px-3 mt-4 mb-1 text-muted">
+                            <span>Statistici nivel național</span>
+                        </h6>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#top-50-specizalization" role="tab" aria-controls="top-50-specizalization"
+                            data-api-source="../data/top-50-specizalization"
+                            data-api-target="#top-50-specizalization-list">
+                            <span data-feather="globe"></span>
+                            Top 50 specializări
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#candiates-average-10" role="tab" aria-controls="candiates-average-10"
+                           data-api-source="../data/candiates-average-10"
+                           data-api-target="#candiates-average-10-list">
+                            <span data-feather="globe"></span>
+                            Elevi cu media 10
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" data-toggle="tab" href="#seats" role="tab" aria-controls="empty-seats-national"
+                            data-api-source="../data/seats"
+                            data-api-target="#seats-list">
+                            <span data-feather="globe"></span>
+                            Situația locurilor
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </nav>
+
+        <main role="main" class="col-md-10 ml-sm-auto col-lg-10 pt-3 px-4">
+
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="candidate" role="tabpanel" aria-labelledby="candidate-tab">
+
+                    <p class="lead text-center">Lista candidaților din <span>Județul SIBIU</span> </p>
+
+                    <table id="candidate-list" class="table table-striped">
+                        <thead class="thead-light">
+                            <tr>
+                                <th colspan="12"></th>
+                            </tr>
+                            <tr>
+                                <th data-dynatable-column='n'>Codul candidatului</th>
+                                <th data-dynatable-column='jp'>Județul de proveniență	</th>
+                                <th data-dynatable-column='s'>Școala de proveniență</th>
+                                <th data-dynatable-column='madm'>Media de admitere</th>
+                                <th data-dynatable-column='mev'>Media EN</th>
+                                <th data-dynatable-column='nro'>Nota limba română</th>
+                                <th data-dynatable-column='nmate'>Nota la matematică</th>
+                                <th data-dynatable-column='lm'>Limba maternă</th>
+                                <th data-dynatable-column='nlm'>Nota limba maternă</th>
+                                <th data-dynatable-column='mabs'>Media de absolvire</th>
+                                <th data-dynatable-column='h'>Liceul în care a fost repartizat</th>
+                                <th data-dynatable-column='sp'>Specializarea la care a fost repartizat</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="tab-pane fade" id="highschool" role="tabpanel" aria-labelledby="highschool-tab">
+
+                    <p class="lead text-center">Lista liceelor din <span>Județul SIBIU</span> </p>
+
+                    <table id="highschool-list" class="table table-striped">
+                        <thead class="thead-light">
+                        <tr>
+                            <th colspan="8"></th>
+                        </tr>
+                        <tr>
+                            <th data-dynatable-column='l'>Numele liceului</th>
+                            <th data-dynatable-column='sp'>Specializări</th>
+                            <th data-dynatable-column='t'>Tip unitate</th>
+                            <th data-dynatable-column='m'>Mediu</th>
+                            <th data-dynatable-column='a'>Adresa</th>
+                            <th data-dynatable-column='p'>Telefon</th>
+                            <th data-dynatable-column='f'>Fax</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="tab-pane fade" id="specialization" role="tabpanel" aria-labelledby="specialization-tab">
+
+                    <p class="lead text-center">Lista specializărilor din <span>Județul SIBIU</span> </p>
+
+                    <table id="specialization-list" class="table table-striped">
+                        <thead class="thead-light">
+                        <tr>
+                            <th colspan="14"></th>
+                        </tr>
+                        <tr>
+                            <th data-dynatable-column='c'>Cod specializare</th>
+                            <th data-dynatable-column='l'>Numele liceului</th>
+                            <th data-dynatable-column='m'>Mediu</th>
+                            <th data-dynatable-column='sp'>Specializarea</th>
+                            <th data-dynatable-column='lp'>Limba de predare</th>
+                            <th data-dynatable-column='lb'>Bilingv</th>
+                            <th data-dynatable-column='nlt'>Nr. de locuri</th>
+                            <th data-dynatable-column='nlo'>Nr. locuri ocupate</th>
+                            <th data-dynatable-column='fi'>Forma de învățământ</th>
+                            <th data-dynatable-column='p'>Profilul</th>
+                            <th data-dynatable-column='f'>Filiera</th>
+                            <th data-dynatable-column='d'>Dual</th>
+                            <th data-dynatable-column='um'>Ultima medie de admitere</th>
+                            <th data-dynatable-column='uma'>Ultima medie de admitere din anul anterior</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="tab-pane fade" id="empty-seats" role="tabpanel" aria-labelledby="empty-seats-tab">
+
+                    <p class="lead text-center">Lista locurilor rămase neocupate din <span>Județul SIBIU</span> </p>
+
+                    <table id="empty-seats-list" class="table table-striped">
+                        <thead class="thead-light">
+                        <tr>
+                            <th colspan="13"></th>
+                        </tr>
+                        <tr>
+                            <th data-dynatable-column='c'>Cod specializare</th>
+                            <th data-dynatable-column='l'>Numele liceului</th>
+                            <th data-dynatable-column='m'>Mediu</th>
+                            <th data-dynatable-column='sp'>Specializarea</th>
+                            <th data-dynatable-column='lp'>Limba de predare</th>
+                            <th data-dynatable-column='lb'>Bilingv</th>
+                            <th data-dynatable-column='nll'>Nr. de locuri libere</th>
+                            <th data-dynatable-column='fi'>Forma de învățământ</th>
+                            <th data-dynatable-column='p'>Profilul</th>
+                            <th data-dynatable-column='f'>Filiera</th>
+                            <th data-dynatable-column='d'>Dual</th>
+                            <th data-dynatable-column='la'>Adresa liceului</th>
+                            <th data-dynatable-column='lt'>Telefon</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="tab-pane fade" id="school" role="tabpanel" aria-labelledby="school-tab">
+
+                    <p class="lead text-center">Lista școlilor din <span>Județul SIBIU</span> </p>
+
+                    <table id="school-list" class="table table-striped">
+                        <thead class="thead-light">
+                        <tr>
+                            <th colspan="11"></th>
+                        </tr>
+                        <tr>
+                            <th data-dynatable-column='c'>Cod</th>
+                            <th data-dynatable-column='n'>Nume şcoală</th>
+                            <th data-dynatable-column='noc'>Număr candidați</th>
+                            <th data-dynatable-column='nocr'>Număr repartizați</th>
+                            <th data-dynatable-column='nocnr'>Număr nerepartizați</th>
+                            <th data-dynatable-column='t'>Tip unitate</th>
+                            <th data-dynatable-column='m'>Mediu</th>
+                            <th data-dynatable-column='a'>Adresa</th>
+                            <th data-dynatable-column='p'>Telefon</th>
+                            <th data-dynatable-column='f'>Fax</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="tab-pane fade" id="top-50-specizalization" role="tabpanel" aria-labelledby="top-50-specizalization-tab">
+
+                    <p class="lead text-center">Primele 50 specializări din țară</p>
+
+                    <table id="top-50-specizalization-list" class="table table-striped" data-sort="medie" data-dir="DESC" data-page-size="50" data-sort-enabled="false" >
+                        <thead class="thead-light">
+                        <tr>
+                            <th colspan="12"></th>
+                        </tr>
+                        <tr>
+                            <th data-dynatable-column='index'>Pozitie</th>
+                            <th data-dynatable-column='judet'>Județul</th>
+                            <th data-dynatable-column='liceu'>Numele liceului</th>
+                            <th data-dynatable-column='specializare'>Specializarea</th>
+                            <th data-dynatable-column='limba_predare'>Limba de predare</th>
+                            <th data-dynatable-column='bilingv'>Bilingv</th>
+                            <th data-dynatable-column='locuri'>Nr. de locuri</th>
+                            <th data-dynatable-column='ocupate'>Nr. locuri ocupate</th>
+                            <th data-dynatable-column='forma'>Forma de învățământ</th>
+                            <th data-dynatable-column='profil'>Profilul</th>
+                            <th data-dynatable-column='dual'>Dual</th>
+                            <th data-dynatable-column='medie'>Ultima medie de admitere</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="tab-pane fade" id="candiates-average-10" role="tabpanel" aria-labelledby="candiates-average-10-tab">
+
+                    <p class="lead text-center">Lista candidaților cu media de admitere 10</p>
+
+                    <table id="candiates-average-10-list" class="table table-striped" data-sort="nume" data-dir="ASC"
+                           data-sort-enabled="false">
+                        <thead class="thead-light">
+                        <tr>
+                            <th colspan="13"></th>
+                        </tr>
+                        <tr>
+                            <th data-dynatable-column='nume'>Codul candidatului</th>
+                            <th data-dynatable-column='madm'>Media la admitere</th>
+                            <th data-dynatable-column='mabs'>Media de absolvire</th>
+                            <th data-dynatable-column='judetProv'>Județul de proveniență</th>
+                            <th data-dynatable-column='scoala'>Școala de proveniență</th>
+                            <th data-dynatable-column='judetAdm'>Județul în care a candidat</th>
+                            <th data-dynatable-column='liceu'>Liceul la care a fost repartizat</th>
+                            <th data-dynatable-column='specializare'>Specializarea</th>
+                            <th data-dynatable-column='limbaPredare'>Limba de predare</th>
+                            <th data-dynatable-column='bilingv'>Bilingv</th>
+                            <th data-dynatable-column='profil'>Profilul</th>
+                            <th data-dynatable-column='dual'>Dual</th>
+                            <th data-dynatable-column='forma'>Forma de învățământ</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div class="tab-pane fade" id="seats" role="tabpanel" aria-labelledby="seats-tab">
+
+                    <p class="lead text-center">Situația locurilor şi candidaților</p>
+
+                    <table id="seats-list" class="table table-striped"
+                           data-page-size="50"
+                           data-sort="index"
+                           data-dir="ASC"
+                           data-sort-enabled="false">
+                        <thead class="thead-light">
+                        <tr>
+                            <th colspan="7"></th>
+                        </tr>
+                        <tr>
+                            <th data-dynatable-column='index'>Nr.crt.</th>
+                            <th data-dynatable-column='judet'>Județ</th>
+                            <th data-dynatable-column='inscrisi'>Număr total de candidați înscrişi</th>
+                            <th data-dynatable-column='repartizati'>Număr total de candidați repartizați</th>
+                            <th data-dynatable-column='nerepartizati'>Număr total de candidați nerepartizați</th>
+                            <th data-dynatable-column='locuri'>Număr total de locuri	</th>
+                            <th data-dynatable-column='libere'>Numărul de locuri neocupate</th>
+                        </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<!-- Bootstrap core JavaScript
+================================================== -->
+<!-- Placed at the end of the document so the pages load faster -->
+<script src="../../script/jquery-3.3.1.min.js"></script>
+<script src="../../script/popper.min.js"></script>
+<script src="../../script/bootstrap.min.js"></script>
+
+<!-- Icons -->
+<script src="../../script/feather.min.js"></script>
+<script src="../../script/jquery.dynatable.js"></script>
+<script src="../../script/repartizare.js"></script>
+
+<script type="text/javascript">
+    feather.replace();
+    Reporter();
+</script>
+
+<script type="text/javascript">
+    var _gaq = _gaq || [];
+    _gaq.push(['_setAccount', 'UA-15703231-12']);
+    _gaq.push(['_setDomainName', 'admitere.edu.ro']);
+    _gaq.push(['_setAllowLinker', true]);
+    _gaq.push(['_trackPageview']);
+
+    (function () {
+        var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+        ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+        var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+    })();
+</script>
+
+</body>
+</html>

@@ -3,6 +3,7 @@
  * `npm run --workspace pipeline cli -- <command> [flags]`.
  */
 
+import { normalizeArchive } from './archive.js';
 import { crawl } from './crawl.js';
 import { calibrate, CALIBRATION_YEAR, sample, verify } from './evnat/index.js';
 import { DEFAULT_MOCK_SEED, DEFAULT_MOCK_YEARS, writeMock } from './mock/index.js';
@@ -28,6 +29,9 @@ const USAGE = `undeintru pipeline
   normalize  --year <year> --county <code> [--fixtures]
              Parse pipeline/raw/ (or pipeline/fixtures/ with --fixtures)
              into pipeline/normalized/<year>/<county>.json.
+
+  archive    Normalize complete official JSON snapshots from pipeline/fixtures/admitere/.
+             Offline; run emit afterwards to publish.
 
   emit       Validate pipeline/normalized/ against the shared schema and
              publish to app/public/data/v1/.
@@ -142,6 +146,10 @@ async function main(argv: readonly string[]): Promise<void> {
         county: requiredString(flags, 'county').toUpperCase(),
         useFixtures: flags.options.get('fixtures') === true,
       });
+      return;
+    }
+    case 'archive': {
+      await normalizeArchive();
       return;
     }
     case 'emit': {

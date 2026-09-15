@@ -14,6 +14,7 @@ import { reloadOnNewServiceWorker } from './sw-update.js';
 import {
   chanceBand,
   fitCutoffModel,
+  hasVacancies,
   predict,
   specKey,
   Z_80,
@@ -132,7 +133,7 @@ function score(
       prediction.kind === 'estimate'
         ? prediction.probability
         : prediction.kind === 'open'
-          ? 1.01 // certain, and above everything the model puts a number on
+          ? -0.5 // historical vacancies have no numeric admission probability
           : -1; // an aptitude exam decides it, or there is no history
     return { row, prediction, rank };
   });
@@ -206,7 +207,7 @@ function paintRow(view: RowView, scored: Scored, media: number | null): void {
         ? 'nu s-a umplut'
         : prediction.reason === 'vocational'
           ? 'decide proba'
-          : 'fără istoric';
+          : prediction.reason === 'no-cutoff' ? 'fără prag publicat' : 'fără istoric';
 
     view.plot.replaceChildren(
       el('span', { class: 'plot-flat' }),
@@ -219,18 +220,18 @@ function paintRow(view: RowView, scored: Scored, media: number | null): void {
         ? 'a rămas loc'
         : prediction.reason === 'vocational'
           ? 'probă de aptitudini'
-          : 'fără istoric';
+          : prediction.reason === 'no-cutoff' ? 'fără prag publicat' : 'fără istoric';
     const figures =
       prediction.kind === 'open'
-        ? `${row.seats} locuri, fără prag`
+        ? `${row.seats - (row.occupiedSeats ?? row.seats)} locuri neocupate în ${row.year}`
         : prediction.reason === 'vocational'
           ? 'media nu decide'
-          : 'nou anul acesta';
+          : prediction.reason === 'no-cutoff' ? 'date insuficiente' : 'nou anul acesta';
 
     view.meta.replaceChildren(
       el(
         'span',
-        { class: 'chance', 'data-band': prediction.kind === 'open' ? 'sigur' : 'none' },
+        { class: 'chance', 'data-band': 'none' },
         label,
       ),
       el('span', { class: 'figures' }, figures),
@@ -266,19 +267,26 @@ const SCHOOL_GRADES = [5, 6, 7, 8] as const;
  * against are a separate matter, and while they are synthetic the banner at
  * the top of the page says so.
  */
-function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement {
+function buildEstimator(
+  onUse: (mean: number, sd: number, grade: SchoolGrade) => void,
+  onClear: () => void,
+): HTMLElement {
   const gradeSelect = el(
     'select',
     { id: 'est-grade' },
     ...SCHOOL_GRADES.map((g) => el('option', { value: String(g) }, `clasa ${GRADE_LABELS[g]}`)),
   );
   gradeSelect.value = '8';
+  const motherTongue = el('select', { id: 'est-mother-tongue' },
+    el('option', { value: '' }, 'Alege'),
+    el('option', { value: 'no' }, 'Nu'),
+    el('option', { value: 'yes' }, 'Da'));
 
   const sheet = el('div', { class: 'est-subjects' });
   const result = el(
     'p',
     { class: 'est-result', 'data-state': 'empty' },
-    'Completează cel puțin o medie anuală la fiecare materie.',
+    'Completează cel puțin o medie generală anuală.',
   );
   const useButton = el('button', { type: 'button', class: 'est-use', disabled: '' });
   useButton.textContent = 'Folosește media estimată';
@@ -297,7 +305,7 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
     });
 
   function subjectBlock(
-    subject: 'romana' | 'matematica',
+    subject: 'school',
     label: string,
     upTo: SchoolGrade,
   ): HTMLElement {
@@ -323,8 +331,7 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
   function rebuild(): void {
     const upTo = Number(gradeSelect.value) as SchoolGrade;
     const blocks = [
-      subjectBlock('romana', 'Medii anuale — română', upTo),
-      subjectBlock('matematica', 'Medii anuale — matematică', upTo),
+      subjectBlock('school', 'Medii generale anuale — toate materiile', upTo),
     ];
     if (upTo === 8) {
       blocks.push(
@@ -357,8 +364,7 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
 
   function recompute(): void {
     const currentGrade = Number(gradeSelect.value) as SchoolGrade;
-    const romana: YearlyMedia[] = [];
-    const matematica: YearlyMedia[] = [];
+    const school: YearlyMedia[] = [];
     const simulare: { romana?: number; matematica?: number } = {};
 
     for (const input of sheet.querySelectorAll('input')) {
@@ -367,8 +373,7 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
       const value = Number(raw);
       const subject = input.dataset['subject'];
       const grade = Number(input.dataset['grade']) as SchoolGrade;
-      if (subject === 'romana') romana.push({ grade, media: value });
-      else if (subject === 'matematica') matematica.push({ grade, media: value });
+      if (subject === 'school') school.push({ grade, media: value });
       else if (input.dataset['sim'] === 'romana') simulare.romana = value;
       else if (input.dataset['sim'] === 'matematica') simulare.matematica = value;
     }
@@ -376,16 +381,23 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
     estimate = null;
     useButton.setAttribute('disabled', '');
 
-    if (romana.length === 0 || matematica.length === 0) {
+    if (motherTongue.value !== 'no') {
       result.dataset['state'] = 'empty';
-      result.textContent = 'Completează cel puțin o medie anuală la fiecare materie.';
+      result.textContent = motherTongue.value === 'yes'
+        ? 'Estimarea nu acoperă candidații care susțin proba de limbă maternă. Introdu media oficială de admitere după examen.'
+        : 'Alege dacă elevul susține proba de limbă maternă.';
+      return;
+    }
+    if (school.length === 0) {
+      result.dataset['state'] = 'empty';
+      result.textContent = 'Completează cel puțin o medie generală anuală.';
       return;
     }
 
     const record: StudentRecord = {
       currentGrade,
-      romana,
-      matematica,
+      school,
+      takesMotherTongue: false,
       ...(simulare.romana !== undefined || simulare.matematica !== undefined ? { simulare } : {}),
     };
 
@@ -396,11 +408,11 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
       result.replaceChildren(
         'Media estimată la evaluare: ',
         el('b', {}, fmt(p.media.mean)),
-        `. În 8 cazuri din 10 iese între ${fmt(p.media.interval[0])} și ${fmt(p.media.interval[1])} `,
+        `. Interval orientativ de 80%: între ${fmt(p.media.interval[0])} și ${fmt(p.media.interval[1])} `,
         `— română ~${fmt(p.romana.mean)}, matematică ~${fmt(p.matematica.mean)}. `,
-        'Notele din școală sunt de obicei mai mari decât cele de la evaluare. Cât de mare e ' +
-          'diferența nu e o presupunere: e măsurată pe rezultatele reale ale celor 143.183 de ' +
-          'candidați de la Evaluarea Națională 2025.',
+        'Notele din școală sunt de obicei mai mari decât cele de la evaluare. ' +
+          'Relația cu media generală este calibrată pe 143.183 de candidați din 2025. ' +
+          'Pentru anii rămași și simulare, incertitudinea include ipoteze nevalidate pe date reale.',
       );
       useButton.removeAttribute('disabled');
     } catch (err) {
@@ -412,10 +424,11 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
     }
   }
 
-  gradeSelect.addEventListener('change', rebuild);
-  sheet.addEventListener('input', recompute);
+  gradeSelect.addEventListener('change', () => { onClear(); rebuild(); });
+  sheet.addEventListener('input', () => { onClear(); recompute(); });
+  motherTongue.addEventListener('change', () => { onClear(); recompute(); });
   useButton.addEventListener('click', () => {
-    if (estimate) onUse(estimate.mean, estimate.sd);
+    if (estimate) onUse(estimate.mean, estimate.sd, Number(gradeSelect.value) as SchoolGrade);
   });
   rebuild();
 
@@ -429,7 +442,7 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
       el(
         'p',
         { class: 'est-lede' },
-        'Scrie mediile anuale de până acum la română și matematică. Cu cât mai sunt ani ' +
+        'Scrie mediile generale anuale, calculate peste toate materiile, nu mediile pe discipline. Cu cât mai sunt ani ' +
           'până la examen, cu atât estimarea e mai vagă — și o arată ca atare, în loc să ' +
           'pretindă o precizie pe care nu o are.',
       ),
@@ -439,6 +452,8 @@ function buildEstimator(onUse: (mean: number, sd: number) => void): HTMLElement 
         el('label', { for: 'est-grade' }, 'În ce clasă e copilul?'),
         gradeSelect,
       ),
+      el('label', { for: 'est-mother-tongue' }, 'Susține proba de limbă maternă?'),
+      motherTongue,
       sheet,
       result,
       useButton,
@@ -528,11 +543,21 @@ function buildUi(index: DatasetIndex): void {
   const epoch = el('p', { class: 'epoch' });
   const banner = el('div', { class: 'banner', hidden: 'hidden' });
 
-  const estimator = buildEstimator((mean, sd) => {
+  const estimator = buildEstimator((mean, sd, grade) => {
+    estimatedGrade = grade;
+    refit();
     mediaInput.value = fmt(mean);
     estimatedMediaSd = sd;
     estimateMark.hidden = false;
     estimateMark.textContent = `estimare ±${(sd * Z_80).toFixed(2)}`;
+    refresh();
+  }, () => {
+    if (estimatedMediaSd === 0) return;
+    mediaInput.value = '';
+    estimatedMediaSd = 0;
+    estimatedGrade = 8;
+    estimateMark.hidden = true;
+    refit();
     refresh();
   });
 
@@ -665,6 +690,16 @@ function buildUi(index: DatasetIndex): void {
   let latest: CountyDataset | null = null;
   let views = new Map<string, RowView>();
   let estimatedMediaSd = 0;
+  let estimatedGrade: SchoolGrade = 8;
+  let history: CountyDataset[] = [];
+
+  function refit(): void {
+    if (!latest) return;
+    const today = new Date();
+    const nextExam = today.getFullYear() + (today.getMonth() >= 8 ? 1 : 0);
+    const target = Math.max(latest.year + 1, nextExam) + 8 - estimatedGrade;
+    model = fitCutoffModel(history, target);
+  }
   let filiera: Filiera | 'toate' = 'toate';
 
   function currentMedia(): number | null {
@@ -713,11 +748,12 @@ function buildUi(index: DatasetIndex): void {
     // the verdict
     // Vocational specializations are left out of both sides of the count: an
     // aptitude exam decides them, so a media neither clears nor misses them.
-    const answerable = scored.filter((s) => s.prediction.kind !== 'unavailable');
+    const answerable = scored.filter((s) => s.prediction.kind === 'estimate');
+    const vacancies = scored.filter((s) => s.prediction.kind === 'open').length;
     const total = answerable.length;
-    const aside = scored.length - total;
+    const aside = scored.filter((s) => s.prediction.kind === 'unavailable').length;
     const clears = answerable.filter(
-      (s) => s.prediction.kind === 'open' || s.rank >= 0.5,
+      (s) => s.rank >= 0.5,
     ).length;
     const tight = scored.filter(
       (s) => s.prediction.kind === 'estimate' && chanceBand(s.prediction.probability) === 'incert',
@@ -741,10 +777,11 @@ function buildUi(index: DatasetIndex): void {
             : `La ${tight} dintre ele diferența e mai mică decât se mișcă pragurile de la un an la altul, așa că răspunsul rămâne „incert”.`,
       ];
       if (aside === 1) {
-        parts.push('Încă una intră pe probă de aptitudini și nu se socotește aici.');
+        parts.push('Încă una nu are o estimare de prag și nu se socotește aici.');
       } else if (aside > 1) {
-        parts.push(`Alte ${aside} intră pe probă de aptitudini și nu se socotesc aici.`);
+        parts.push(`Alte ${aside} nu au o estimare de prag și nu se socotesc aici.`);
       }
+      if (vacancies > 0) parts.push(`${vacancies} specializări au avut locuri neocupate; nu sunt incluse în numărul pragurilor estimate.`);
       if (estimatedMediaSd > 0) {
         parts.push('Media e estimată din note, iar incertitudinea ei intră în fiecare șansă.');
       }
@@ -798,7 +835,7 @@ function buildUi(index: DatasetIndex): void {
           'Cu cât bara e plină mai mult, cu atât marja e mai mare.';
     groups.open.heading.textContent = `Aici n-a fost prag în ${model.baseYear}`;
     groups.open.note.textContent =
-      'Au rămas locuri libere, deci nimeni n-a fost respins pentru medie. Dacă se repetă, intri oricum.';
+      'Au rămas locuri neocupate în anul de referință. Nu estimăm o probabilitate: cererea și oferta se pot schimba.';
     groups.below.heading.textContent = 'Aici pragul e peste media ta';
     groups.below.note.textContent =
       'Începe cu cele la care ai fost cel mai aproape. Pragurile se mai duc și în jos ' +
@@ -854,7 +891,8 @@ function buildUi(index: DatasetIndex): void {
     if (!newest) throw new Error(`no datasets for ${code}`);
 
     latest = newest;
-    model = fitCutoffModel(datasets, newest.year + 1);
+    history = datasets;
+    refit();
 
     // Rows are built once per county and then only repainted, so the entry
     // animation runs on arrival and never again on a keystroke.
@@ -864,7 +902,7 @@ function buildUi(index: DatasetIndex): void {
         .map((row, i) => [specKey(row), buildRow(row, i)]),
     );
 
-    drawRuler(newest.rows);
+    drawRuler(newest.rows.filter((row) => !hasVacancies(row) && !row.vocational));
 
     const synthetic = datasets.some((d) => d.provenance === 'synthetic');
     banner.hidden = !synthetic;
@@ -891,6 +929,8 @@ function buildUi(index: DatasetIndex): void {
   mediaInput.addEventListener('input', () => {
     // A typed media is an exam result: exact, and no longer the estimate.
     estimatedMediaSd = 0;
+    estimatedGrade = 8;
+    refit();
     estimateMark.hidden = true;
     refresh();
   });

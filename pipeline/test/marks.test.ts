@@ -28,15 +28,14 @@ import { fitCutoffModel, predict, specKey, Z_80 } from '../src/model.js';
 function record(
   currentGrade: SchoolGrade,
   romana: readonly (readonly [SchoolGrade, number])[],
-  matematica: readonly (readonly [SchoolGrade, number])[],
   simulare?: { romana?: number; matematica?: number },
 ): StudentRecord {
   const entries = (list: readonly (readonly [SchoolGrade, number])[]): YearlyMedia[] =>
     list.map(([grade, media]) => ({ grade, media }));
   return {
     currentGrade,
-    romana: entries(romana),
-    matematica: entries(matematica),
+    school: entries(romana),
+    takesMotherTongue: false,
     ...(simulare ? { simulare } : {}),
   };
 }
@@ -46,25 +45,25 @@ function record(
 describe('predictMarks guards', () => {
   it('refuses a grade outside V..VIII', () => {
     expect(() =>
-      predictMarks(record(4 as SchoolGrade, [[5, 9]], [[5, 9]])),
+      predictMarks(record(4 as SchoolGrade, [[5, 9]])),
     ).toThrow(MarksError);
     expect(() =>
-      predictMarks(record(9 as SchoolGrade, [[5, 9]], [[5, 9]])),
+      predictMarks(record(9 as SchoolGrade, [[5, 9]])),
     ).toThrow(/V\.\.VIII/);
   });
 
   it('refuses a media outside the grading scale, or a non-finite one', () => {
-    expect(() => predictMarks(record(6, [[5, 0.5]], [[5, 9]]))).toThrow(/outside 1\.\.10/);
-    expect(() => predictMarks(record(6, [[5, 9]], [[5, 10.5]]))).toThrow(/outside 1\.\.10/);
-    expect(() => predictMarks(record(6, [[5, Number.NaN]], [[5, 9]]))).toThrow(/finite/);
+    expect(() => predictMarks(record(6, [[5, 0.5]]))).toThrow(/outside 1\.\.10/);
+    expect(() => predictMarks(record(6, [[5, 10.5]]))).toThrow(/outside 1\.\.10/);
+    expect(() => predictMarks(record(6, [[5, Number.NaN]]))).toThrow(/finite/);
   });
 
   it('refuses a subject with no history', () => {
-    expect(() => predictMarks(record(6, [], [[5, 9]]))).toThrow(/at least one yearly media/);
+    expect(() => predictMarks(record(6, []))).toThrow(/at least one yearly media/);
   });
 
   it('refuses a media for a grade the kid has not reached', () => {
-    expect(() => predictMarks(record(6, [[7, 9]], [[5, 9]]))).toThrow(/cannot exist/);
+    expect(() => predictMarks(record(6, [[7, 9]]))).toThrow(/cannot exist/);
   });
 
   it('refuses duplicate grades within a subject', () => {
@@ -75,16 +74,14 @@ describe('predictMarks guards', () => {
           [
             [5, 9],
             [5, 8],
-          ],
-          [[5, 9]],
-        ),
+          ]),
       ),
     ).toThrow(/two medii/);
   });
 
   it('refuses simulare marks from anyone not in grade 8', () => {
     expect(() =>
-      predictMarks(record(7, [[6, 9]], [[6, 9]], { matematica: 7 })),
+      predictMarks(record(7, [[6, 9]], { matematica: 7 })),
     ).toThrow(/simulare/);
   });
 });
@@ -93,7 +90,7 @@ describe('predictMarks guards', () => {
 
 describe('predictMarks semantics', () => {
   it('predicts below the school media: the calibration removes inflation', () => {
-    const p = predictMarks(record(8, [[8, 9]], [[8, 9]]));
+    const p = predictMarks(record(8, [[8, 9]]));
     expect(p.romana.mean).toBeLessThan(9);
     expect(p.matematica.mean).toBeLessThan(9);
     // ...and matematică loses more, as it does at the real exam.
@@ -103,22 +100,22 @@ describe('predictMarks semantics', () => {
   it('is monotone: better school grades never lower the prediction', () => {
     let previous = -1;
     for (let media = 5; media <= 10; media += 0.5) {
-      const p = predictMarks(record(8, [[8, media]], [[8, media]]));
+      const p = predictMarks(record(8, [[8, media]]));
       expect(p.media.mean).toBeGreaterThanOrEqual(previous);
       previous = p.media.mean;
     }
   });
 
   it('is vaguer about a 5th grader than an 8th grader — three more years of drift', () => {
-    const young = predictMarks(record(5, [[5, 9]], [[5, 9]]));
-    const old = predictMarks(record(8, [[8, 9]], [[8, 9]]));
+    const young = predictMarks(record(5, [[5, 9]]));
+    const old = predictMarks(record(8, [[8, 9]]));
     expect(young.media.sd).toBeGreaterThan(old.media.sd);
     expect(young.romana.horizonYears).toBe(3);
     expect(old.romana.horizonYears).toBe(0);
   });
 
   it('tightens as more school years are observed', () => {
-    const one = predictMarks(record(8, [[8, 9]], [[8, 9]]));
+    const one = predictMarks(record(8, [[8, 9]]));
     const four = predictMarks(
       record(
         8,
@@ -127,31 +124,19 @@ describe('predictMarks semantics', () => {
           [6, 9],
           [7, 9],
           [8, 9],
-        ],
-        [
-          [5, 9],
-          [6, 9],
-          [7, 9],
-          [8, 9],
-        ],
-      ),
+        ]),
     );
     expect(four.media.sd).toBeLessThan(one.media.sd);
   });
 
-  it('weights the newest year hardest', () => {
+  it('uses the arithmetic mean of annual overall averages', () => {
     const risingLate = predictMarks(
       record(
         8,
         [
           [7, 7],
           [8, 9],
-        ],
-        [
-          [7, 7],
-          [8, 9],
-        ],
-      ),
+        ]),
     );
     const fallingLate = predictMarks(
       record(
@@ -159,20 +144,15 @@ describe('predictMarks semantics', () => {
         [
           [7, 9],
           [8, 7],
-        ],
-        [
-          [7, 9],
-          [8, 7],
-        ],
-      ),
+        ]),
     );
-    // Same two medii either way round; the one who is at 9 *now* predicts higher.
-    expect(risingLate.media.mean).toBeGreaterThan(fallingLate.media.mean);
+    // The calibration uses the overall average, not a recency-weighted proxy.
+    expect(risingLate.media.mean).toBe(fallingLate.media.mean);
   });
 
   it('a simulare tightens the answer and moves it toward the simulare marks', () => {
-    const without = predictMarks(record(8, [[8, 9.5]], [[8, 9.5]]));
-    const withSim = predictMarks(record(8, [[8, 9.5]], [[8, 9.5]], { romana: 6, matematica: 6 }));
+    const without = predictMarks(record(8, [[8, 9.5]]));
+    const withSim = predictMarks(record(8, [[8, 9.5]], { romana: 6, matematica: 6 }));
     expect(withSim.media.sd).toBeLessThan(without.media.sd);
     expect(withSim.media.mean).toBeLessThan(without.media.mean);
     expect(withSim.romana.basis).toBe('school+simulare');
@@ -180,16 +160,16 @@ describe('predictMarks semantics', () => {
   });
 
   it('centres the 80% interval on the mean, away from the scale bounds', () => {
-    const p = predictMarks(record(8, [[8, 8]], [[8, 8]]));
+    const p = predictMarks(record(8, [[8, 8]]));
     expect((p.media.interval[0] + p.media.interval[1]) / 2).toBeCloseTo(p.media.mean, 10);
     expect(p.media.interval[1] - p.media.interval[0]).toBeCloseTo(2 * Z_80 * p.media.sd, 10);
   });
 
   it('clamps to the grading scale rather than promising an 11', () => {
-    const p = predictMarks(record(8, [[8, 10]], [[8, 10]], { romana: 10, matematica: 10 }));
+    const p = predictMarks(record(8, [[8, 10]], { romana: 10, matematica: 10 }));
     expect(p.media.interval[1]).toBeLessThanOrEqual(10);
     expect(p.romana.mean).toBeLessThanOrEqual(10);
-    const low = predictMarks(record(5, [[5, 1.5]], [[5, 1.5]]));
+    const low = predictMarks(record(5, [[5, 1.5]]));
     expect(low.media.interval[0]).toBeGreaterThanOrEqual(1);
   });
 });
@@ -211,7 +191,7 @@ function score(students: readonly SyntheticStudent[]): Scored[] {
       const sorted = [...list].sort((a, b) => a.grade - b.grade);
       return sorted[sorted.length - 1]?.media ?? 0;
     };
-    const naive = (last(r.romana) + last(r.matematica)) / 2;
+    const naive = last(r.school);
     return {
       error: p.media.mean - truth.exam.media,
       naiveError: naive - truth.exam.media,
@@ -337,6 +317,7 @@ describe('misspecification: what synthetic validation cannot promise', () => {
   it('stays calibrated when the world matches its assumptions', () => {
     const matched = score(generateStudents({ seed: 701, count: 2500, currentGrade: 8 }));
     const rate = matched.filter((s) => s.covered).length / matched.length;
-    expect(rate).toBeGreaterThan(0.78);
+    // Three binomial standard errors around the nominal coverage.
+    expect(Math.abs(rate - 0.8)).toBeLessThan(3 * Math.sqrt(0.8 * 0.2 / matched.length));
   });
 });

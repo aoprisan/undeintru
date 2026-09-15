@@ -63,8 +63,6 @@ export interface StudentGenOptions {
   readonly examRho?: number;
   /** Correlation of the two subjects' standing gap to their catalog. */
   readonly abilityShockRho?: number;
-  /** Correlation of the two subjects' school-record levels. */
-  readonly abilityRho?: number;
 }
 
 /** What actually happened to the kid — the answer the model is scored on. */
@@ -178,7 +176,6 @@ export function generateStudents(options: StudentGenOptions): SyntheticStudent[]
     inflationBias = 0,
     examRho = 0.5,
     abilityShockRho = 0.4,
-    abilityRho = 0.6,
   } = options;
 
   if (withSimulare && currentGrade !== EXAM_GRADE) {
@@ -189,27 +186,13 @@ export function generateStudents(options: StudentGenOptions): SyntheticStudent[]
   const students: SyntheticStudent[] = [];
 
   for (let i = 0; i < count; i += 1) {
-    // Correlated record levels: a shared factor plus a subject-specific one.
-    const shared = rng.normal();
-    const zR = Math.sqrt(abilityRho) * shared + Math.sqrt(1 - abilityRho) * rng.normal();
-    const zM = Math.sqrt(abilityRho) * shared + Math.sqrt(1 - abilityRho) * rng.normal();
-    const level8R = clamp2(SCHOOL_LEVEL.mean + SCHOOL_LEVEL.sd * zR);
-    const level8M = clamp2(SCHOOL_LEVEL.mean + SCHOOL_LEVEL.sd * zM);
-
-    const trajR = levelTrajectory(rng, level8R, driftSd);
-    const trajM = levelTrajectory(rng, level8M, driftSd);
-
-    const romana: YearlyMedia[] = [];
-    const matematica: YearlyMedia[] = [];
+    // The calibration conditions both exams on one overall school record.
+    const level8R = clamp2(SCHOOL_LEVEL.mean + SCHOOL_LEVEL.sd * rng.normal());
+    const level8M = level8R;
+    const trajectory = levelTrajectory(rng, level8R, driftSd);
+    const school: YearlyMedia[] = [];
     for (let grade = 5 as SchoolGrade; grade <= currentGrade; grade = (grade + 1) as SchoolGrade) {
-      romana.push({
-        grade,
-        media: catalogEntry(rng, trajR.get(grade) ?? level8R, inflationBias),
-      });
-      matematica.push({
-        grade,
-        media: catalogEntry(rng, trajM.get(grade) ?? level8M, inflationBias),
-      });
+      school.push({ grade, media: catalogEntry(rng, trajectory.get(grade) ?? level8R, inflationBias) });
     }
 
     // Correlated exam-day noise: a good or bad day tends to be shared.
@@ -255,7 +238,7 @@ export function generateStudents(options: StudentGenOptions): SyntheticStudent[]
       : undefined;
 
     students.push({
-      record: { currentGrade, romana, matematica, ...(simulare ? { simulare } : {}) },
+      record: { currentGrade, school, takesMotherTongue: false, ...(simulare ? { simulare } : {}) },
       truth: {
         ability8: { romana: level8R, matematica: level8M },
         exam: { romana: examR, matematica: examM, media: computeMediaAdmitere(examR, examM) },
