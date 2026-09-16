@@ -1,6 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { COUNTY_NAMES } from '../../app/src/data/counties.js';
+import { assertCountyDataset, assertDatasetIndex } from '../src/schema.js';
+import { PUBLIC_DATA_DIR } from '../src/paths.js';
 import { FIXTURES_DIR } from '../src/paths.js';
 import { parseSpecializations } from '../src/parse/specialization.js';
 import { toCountyDataset } from '../src/emit.js';
@@ -19,6 +22,28 @@ async function dataset(year: number) {
 }
 
 describe('official archive', () => {
+  it('publishes both official seasons for every county, exactly matching the source snapshots', async () => {
+    const index = assertDatasetIndex(JSON.parse(await readFile(join(PUBLIC_DATA_DIR, 'index.json'), 'utf8')));
+    const codes = Object.keys(COUNTY_NAMES).sort();
+    expect(codes).toHaveLength(42);
+    expect(index.datasets).toHaveLength(84);
+    for (const year of [2025, 2026]) {
+      expect(index.datasets.filter((entry) => entry.year === year).map((entry) => entry.county).sort()).toEqual(codes);
+      for (const county of codes) {
+        const path = join(FIXTURES_DIR, 'admitere', `${year}-${county}.json`);
+        const sourceUrl = (await readFile(`${path}.url`, 'utf8')).trim();
+        const rows = parseSpecializations(await readFile(path, 'utf8'), { year, county, sourceUrl });
+        rows.sort((a, b) => a.schoolCode.localeCompare(b.schoolCode) || a.specId.localeCompare(b.specId));
+        const entry = index.datasets.find((item) => item.year === year && item.county === county);
+        expect(entry).toMatchObject({ path: `${year}/${county}.json`, rowCount: rows.length, provenance: 'official' });
+        const published = assertCountyDataset(JSON.parse(await readFile(join(PUBLIC_DATA_DIR, `${year}/${county}.json`), 'utf8')));
+        expect(published).toMatchObject({ year, county, provenance: 'official', sources: [sourceUrl], rows });
+        expect(published.rows).toHaveLength(rows.length);
+        expect(fitCutoffModel([published], year + 1).county).toBe(county);
+      }
+    }
+  });
+
   it('reproduces complete official county tables and current, not previous, cutoffs', async () => {
     const previous = await dataset(2025);
     const current = await dataset(2026);
@@ -35,6 +60,15 @@ describe('official archive', () => {
     expect(previous.rows.find((row) => row.specId === '115')?.specLabel).toContain('bilingv: Limba engleză');
   });
 
+  it('preserves official allocations above the offered seat count', async () => {
+    const sourceUrl = 'https://static.admitere.edu.ro/2025/repartizare/B/data/specialization.json';
+    const rows = parseSpecializations(await readFile(join(FIXTURES_DIR, 'admitere', '2025-B.json'), 'utf8'),
+      { year: 2025, county: 'B', sourceUrl });
+    const published = toCountyDataset({ year: 2025, county: 'B', provenance: 'official', sources: [sourceUrl], rows },
+      '2026-09-16T00:00:00.000Z');
+    expect(published.rows.find((row) => row.specId === '344')).toMatchObject({ seats: 78, occupiedSeats: 79, lastMedia: 9.82 });
+  });
+
   it('rejects wrong years, counties, duplicate records, missing fields and malformed cutoffs', async () => {
     const json = await snapshot(2025);
     const ctx = { year: 2025, county: 'SB', sourceUrl: source(2025) };
@@ -42,7 +76,7 @@ describe('official archive', () => {
     const rows = JSON.parse(json) as Record<string, unknown>[];
     const first = rows[0];
     if (!first) throw new Error('Missing fixture row');
-    for (const change of [{ j: 'CJ' }, { um: 'oops' }, { lc: undefined }, { nlt: '-1' }, { nlo: '9999' }]) {
+    for (const change of [{ j: 'CJ' }, { um: 'oops' }, { lc: undefined }, { nlt: '-1' }, { nlo: '-1' }]) {
       expect(() => parseSpecializations(JSON.stringify([{ ...first, ...change }]), ctx)).toThrow(source(2025));
     }
     expect(() => parseSpecializations(JSON.stringify([first, first]), ctx)).toThrow(/duplicate/);

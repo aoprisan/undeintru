@@ -65,6 +65,10 @@ evnat-calibrate year="2025":
 evnat-sample:
     npm run --workspace pipeline --silent cli -- evnat sample
 
+# Audit prior forecasts against the committed official 2026 outcomes, offline.
+model-audit:
+    node --import tsx pipeline/src/audit-model.ts
+
 # --- quality ---------------------------------------------------------------
 
 typecheck:

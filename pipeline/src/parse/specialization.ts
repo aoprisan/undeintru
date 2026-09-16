@@ -41,7 +41,6 @@ export function parseSpecializations(json: string, ctx: ParseContext): Admission
     const filiera = toFiliera(text('f'), ctx);
     const seats = integer('nlt');
     const occupiedSeats = integer('nlo');
-    if (occupiedSeats > seats) return fail(`row ${index}: occupied seats exceed capacity`);
     const bilingual = text('lb');
     const specLabel = text('sp') + (bilingual === '-' ? '' : ` (bilingv: ${bilingual})`) +
       (dual === 'DA' ? ' (dual)' : '');

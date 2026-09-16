@@ -62,8 +62,14 @@ answer only costs them certainty they never had.
 Estimating from pooled deltas needs at least three distinct year pairs. With a
 single pair every delta shares one county shift, so their spread measures
 `sigma` alone and silently drops `tau` — precisely the overconfidence this is
-designed to avoid. Below that threshold the model falls back to documented
-priors and reports `evidence: 'prior'`, which the UI surfaces.
+designed to avoid. Below that threshold the model retains documented prior **floors** and reports
+`evidence: 'prior'`, which the UI surfaces. Specialization noise cannot fall
+below 0.25; county-shift uncertainty cannot fall below 0.20. The latter can
+increase to the root mean square of observed annual median shifts about zero,
+using only transitions with at least eight matched courses. This keeps large
+shared shocks in the uncertainty estimate without predicting that their
+direction will repeat. A quiet season cannot establish low future volatility.
+These floors and the eight-course guard are safeguards, not fitted calibration.
 
 ### What the model refuses to do
 
@@ -141,18 +147,19 @@ Once several years of real cutoffs are in hand:
 4. If cutoffs do trend, add a drift term — but only if it survives a backtest,
    not because a plot looks like it slopes.
 
-## Published real history (2026-09-15)
+## Published real history (2026-09-16)
 
-The app now fits on official Sibiu 2025 and 2026 allocation tables. Option
+The app now fits on official 2025 and 2026 allocation tables for all 42 county codes. Option
 codes were reassigned in 2026, so cross-year matching uses school code plus
 course label, profile, track, and teaching language (including bilingual and
 dual variants in the label). Case and cedilla differences are normalized;
 ambiguous identities are excluded. Within one year, the official option code
 still identifies the row used for prediction.
 
-There are 27 unambiguous matched courses filled in both years, supplying one
-annual transition. This is enough to observe pooled changes but does not
-supply a held-out real year for the validation described above. Technical
+In Sibiu there are 27 unambiguous matched courses filled in both years, supplying
+one annual transition. Across all counties there are 1,504 such pairs. The
+2026 outcomes can test a 2025-only prior forecast, but cannot both fit an
+annual spread and validate it on an independent later year. Technical
 course names changed substantially and are not guessed to be equivalent.
 The archive's previous-year column is not used; each cutoff comes from its
 own year's allocation response.
@@ -169,3 +176,41 @@ The one-year spread is multiplied by `sqrt(targetYear - baseYear)`, consistent
 with independent annual increments in the stated random walk. The interface
 carries the selected school grade into the admission year. Future course
 availability and annual-independence assumptions remain uncertain.
+
+
+## Short-history improvement and real-data audit (2026-09-16)
+
+Run `node --import tsx pipeline/src/audit-model.ts` (or `just model-audit`).
+The offline audit fits **only 2025** and scores against 2026, using the same
+unambiguous course matching as fitting. Vocational, missing-cutoff and vacant
+courses are excluded. It does not use 2026 outcomes to fit the scored forecast.
+Across 42 counties and 1,504 eligible pairs, the original prior's nominal 80%
+interval covers **46.68%**; mean absolute cutoff error is **0.6414** points.
+The new and old models have identical forecasts with just one observed year,
+so this is evidence of the prior's limits, not a claimed real-data improvement.
+Changing courses and courses that become vacant are outside this score.
+
+The audit also prints each county's 2027 spread, fitted on both seasons.
+Those forecasts incorporate the observed shock through the new short-history
+rule, but have no independent real outcomes yet. Counties share national exam
+conditions: 42 counties are not 42 independent annual shocks.
+
+`pipeline/test/short-history.test.ts` compares the revised estimator with the
+previous short-history formula on 200 deterministic synthetic worlds per
+scenario, training on two seasons and scoring only the third. The baseline
+recomputes its residual MAD from the same training rows. Brier scores measure
+threshold clearing on a fixed grid of five candidate marks around each base
+cutoff, restricted to the grading scale; they are not applicant-level accuracy.
+
+| True county-shift SD | Old coverage | New coverage | Old Brier | New Brier |
+| --- | ---: | ---: | ---: | ---: |
+| 0.12 | 85.17% | 89.41% | 0.07446 | 0.07511 |
+| 0.40 | 57.29% | 72.83% | 0.14254 | 0.13907 |
+| 0.80 | 36.17% | 62.92% | 0.23239 | 0.20992 |
+
+The safeguard improves coverage and probability scores under larger shared
+shocks, at a small sharpness cost in quiet worlds. It still undercovers in the
+volatile scenarios. It is not a guarantee of calibrated probabilities, and
+retains the prior-evidence warning. The longer-history pooled estimator and
+its existing synthetic validation are unchanged. Duplicate history years now
+raise `ModelError` rather than silently changing which transitions are fitted.

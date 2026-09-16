@@ -87,6 +87,23 @@ export function hasVacancies(row: AdmissionRow): boolean {
   return row.occupiedSeats !== undefined && row.occupiedSeats < row.seats;
 }
 
+/** Stable course identity across reassigned option codes; ambiguous matches are excluded. */
+const identity = (row: AdmissionRow): string => JSON.stringify([
+  row.schoolCode, row.specLabel, row.profile, row.filiera, row.limba,
+].map((part) => part.normalize('NFC').toLocaleLowerCase('ro-RO')
+  .replace(/[şţ]/g, (letter) => letter === 'ş' ? 'ș' : 'ț')));
+export function uniqueCourses(rows: readonly AdmissionRow[]): Map<string, AdmissionRow> {
+  const matches = new Map<string, AdmissionRow>();
+  const duplicates = new Set<string>();
+  for (const row of rows) {
+    const key = identity(row);
+    if (matches.has(key)) duplicates.add(key);
+    matches.set(key, row);
+  }
+  for (const key of duplicates) matches.delete(key);
+  return matches;
+}
+
 // --- statistics -------------------------------------------------------------
 
 /** Median of a non-empty list. Returns `null` for an empty one. */
@@ -159,8 +176,8 @@ export interface FittedModel {
   /** County-wide shifts actually observed in the history, oldest first. */
   readonly observedShifts: readonly ObservedShift[];
   /**
-   * `estimated` when both spreads came from the data; `prior` when history was
-   * too short and {@link SIGMA_PRIOR} / {@link TAU_PRIOR} were used instead.
+   * `estimated` when pooled errors determine the spread; `prior` when history
+   * is too short and prior floors still constrain the observed components.
    * A prediction resting on priors is much weaker and the UI says so.
    */
   readonly evidence: 'estimated' | 'prior';
@@ -191,6 +208,9 @@ export function fitCutoffModel(
   }
 
   const years = history.map((d) => d.year);
+  if (new Set(years).size !== years.length) {
+    throw new ModelError('history contains duplicate years');
+  }
   for (const year of years) {
     if (!areYearsComparable(year, targetYear)) {
       throw new ModelError(
@@ -232,23 +252,8 @@ export function fitCutoffModel(
 
     // Admission option codes are reassigned each year (including SB 2026).
     // Match the actual course; omit ambiguous identities instead of guessing.
-    const identity = (row: AdmissionRow): string => JSON.stringify([
-      row.schoolCode, row.specLabel, row.profile, row.filiera, row.limba,
-    ].map((part) => part.normalize('NFC').toLocaleLowerCase('ro-RO')
-      .replace(/[şţ]/g, (letter) => letter === 'ş' ? 'ș' : 'ț')));
-    const uniqueRows = (rows: readonly AdmissionRow[]): Map<string, AdmissionRow> => {
-      const matches = new Map<string, AdmissionRow>();
-      const duplicates = new Set<string>();
-      for (const row of rows) {
-        const key = identity(row);
-        if (matches.has(key)) duplicates.add(key);
-        matches.set(key, row);
-      }
-      for (const key of duplicates) matches.delete(key);
-      return matches;
-    };
-    const prevByKey = uniqueRows(prev.rows);
-    const currentByKey = uniqueRows(curr.rows);
+    const prevByKey = uniqueCourses(prev.rows);
+    const currentByKey = uniqueCourses(curr.rows);
     const deltas: number[] = [];
     for (const [key, row] of currentByKey) {
       const before = prevByKey.get(key);
@@ -292,8 +297,22 @@ export function fitCutoffModel(
   const corrected =
     pooled === null ? null : pooled * Math.sqrt(shiftCount / Math.max(1, shiftCount - 1));
 
-  const sigma = sigmaEstimate ?? SIGMA_PRIOR;
-  const tau = tauEstimate ?? TAU_PRIOR;
+  // One or two seasons cannot establish that either component is quieter
+  // than its prior. In particular, centring every delta on its annual median
+  // must not erase evidence of a large shared shock. Use the RMS of observed
+  // shifts about ZERO (the forecast assumption), with a prior floor. Require
+  // eight matched courses per shift to avoid learning from a single course.
+  // This widens uncertainty; it does not extrapolate the direction of a shock.
+  const reliableShifts = observedShifts.filter((shift) => shift.specCount >= 8);
+  const shortHistoryTau = reliableShifts.length === 0 ? TAU_PRIOR : Math.max(
+    TAU_PRIOR,
+    Math.sqrt(reliableShifts.reduce((sum, shift) => sum + shift.shift ** 2, 0) /
+      reliableShifts.length),
+  );
+  const sigma = corrected === null
+    ? Math.max(SIGMA_PRIOR, sigmaEstimate ?? SIGMA_PRIOR)
+    : sigmaEstimate ?? SIGMA_PRIOR;
+  const tau = corrected === null ? shortHistoryTau : tauEstimate ?? TAU_PRIOR;
   // Independent annual increments in the random-walk model accumulate variance.
   const sd = Math.max(MIN_SD, corrected ?? Math.hypot(tau, sigma)) *
     Math.sqrt(targetYear - latest.year);

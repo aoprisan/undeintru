@@ -53,7 +53,7 @@ describe('review regressions', () => {
   it('validates published occupancy', () => {
     const dataset = history[0];
     if (!dataset || !dataset.rows[0]) throw new Error('Missing fixture');
-    for (const occupiedSeats of [-1, 0.5, dataset.rows[0].seats + 1]) {
+    for (const occupiedSeats of [-1, 0.5]) {
       expect(() => assertCountyDataset({ ...dataset, rows: [{ ...dataset.rows[0], occupiedSeats }] }))
         .toThrow(/occupiedSeats/);
     }

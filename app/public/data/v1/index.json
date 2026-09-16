@@ -1,7 +1,231 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-15T18:39:13.618Z",
+  "generatedAt": "2026-09-16T05:23:43.963Z",
   "datasets": [
+    {
+      "year": 2026,
+      "county": "AB",
+      "path": "2026/AB.json",
+      "rowCount": 88,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "AG",
+      "path": "2026/AG.json",
+      "rowCount": 141,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "AR",
+      "path": "2026/AR.json",
+      "rowCount": 123,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "B",
+      "path": "2026/B.json",
+      "rowCount": 424,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "BC",
+      "path": "2026/BC.json",
+      "rowCount": 149,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "BH",
+      "path": "2026/BH.json",
+      "rowCount": 192,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "BN",
+      "path": "2026/BN.json",
+      "rowCount": 80,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "BR",
+      "path": "2026/BR.json",
+      "rowCount": 81,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "BT",
+      "path": "2026/BT.json",
+      "rowCount": 92,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "BV",
+      "path": "2026/BV.json",
+      "rowCount": 146,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "BZ",
+      "path": "2026/BZ.json",
+      "rowCount": 104,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "CJ",
+      "path": "2026/CJ.json",
+      "rowCount": 188,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "CL",
+      "path": "2026/CL.json",
+      "rowCount": 59,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "CS",
+      "path": "2026/CS.json",
+      "rowCount": 79,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "CT",
+      "path": "2026/CT.json",
+      "rowCount": 181,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "CV",
+      "path": "2026/CV.json",
+      "rowCount": 70,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "DB",
+      "path": "2026/DB.json",
+      "rowCount": 108,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "DJ",
+      "path": "2026/DJ.json",
+      "rowCount": 166,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "GJ",
+      "path": "2026/GJ.json",
+      "rowCount": 81,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "GL",
+      "path": "2026/GL.json",
+      "rowCount": 132,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "GR",
+      "path": "2026/GR.json",
+      "rowCount": 50,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "HD",
+      "path": "2026/HD.json",
+      "rowCount": 136,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "HR",
+      "path": "2026/HR.json",
+      "rowCount": 125,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "IF",
+      "path": "2026/IF.json",
+      "rowCount": 58,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "IL",
+      "path": "2026/IL.json",
+      "rowCount": 77,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "IS",
+      "path": "2026/IS.json",
+      "rowCount": 208,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "MH",
+      "path": "2026/MH.json",
+      "rowCount": 52,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "MM",
+      "path": "2026/MM.json",
+      "rowCount": 140,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "MS",
+      "path": "2026/MS.json",
+      "rowCount": 173,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "NT",
+      "path": "2026/NT.json",
+      "rowCount": 103,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "OT",
+      "path": "2026/OT.json",
+      "rowCount": 93,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "PH",
+      "path": "2026/PH.json",
+      "rowCount": 217,
+      "provenance": "official"
+    },
     {
       "year": 2026,
       "county": "SB",
@@ -10,10 +234,360 @@
       "provenance": "official"
     },
     {
+      "year": 2026,
+      "county": "SJ",
+      "path": "2026/SJ.json",
+      "rowCount": 76,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "SM",
+      "path": "2026/SM.json",
+      "rowCount": 128,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "SV",
+      "path": "2026/SV.json",
+      "rowCount": 197,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "TL",
+      "path": "2026/TL.json",
+      "rowCount": 60,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "TM",
+      "path": "2026/TM.json",
+      "rowCount": 166,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "TR",
+      "path": "2026/TR.json",
+      "rowCount": 57,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "VL",
+      "path": "2026/VL.json",
+      "rowCount": 113,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "VN",
+      "path": "2026/VN.json",
+      "rowCount": 70,
+      "provenance": "official"
+    },
+    {
+      "year": 2026,
+      "county": "VS",
+      "path": "2026/VS.json",
+      "rowCount": 101,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "AB",
+      "path": "2025/AB.json",
+      "rowCount": 57,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "AG",
+      "path": "2025/AG.json",
+      "rowCount": 111,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "AR",
+      "path": "2025/AR.json",
+      "rowCount": 95,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "B",
+      "path": "2025/B.json",
+      "rowCount": 346,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "BC",
+      "path": "2025/BC.json",
+      "rowCount": 107,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "BH",
+      "path": "2025/BH.json",
+      "rowCount": 111,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "BN",
+      "path": "2025/BN.json",
+      "rowCount": 57,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "BR",
+      "path": "2025/BR.json",
+      "rowCount": 47,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "BT",
+      "path": "2025/BT.json",
+      "rowCount": 72,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "BV",
+      "path": "2025/BV.json",
+      "rowCount": 90,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "BZ",
+      "path": "2025/BZ.json",
+      "rowCount": 64,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "CJ",
+      "path": "2025/CJ.json",
+      "rowCount": 124,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "CL",
+      "path": "2025/CL.json",
+      "rowCount": 43,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "CS",
+      "path": "2025/CS.json",
+      "rowCount": 56,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "CT",
+      "path": "2025/CT.json",
+      "rowCount": 128,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "CV",
+      "path": "2025/CV.json",
+      "rowCount": 40,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "DB",
+      "path": "2025/DB.json",
+      "rowCount": 75,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "DJ",
+      "path": "2025/DJ.json",
+      "rowCount": 119,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "GJ",
+      "path": "2025/GJ.json",
+      "rowCount": 65,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "GL",
+      "path": "2025/GL.json",
+      "rowCount": 92,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "GR",
+      "path": "2025/GR.json",
+      "rowCount": 30,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "HD",
+      "path": "2025/HD.json",
+      "rowCount": 84,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "HR",
+      "path": "2025/HR.json",
+      "rowCount": 73,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "IF",
+      "path": "2025/IF.json",
+      "rowCount": 37,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "IL",
+      "path": "2025/IL.json",
+      "rowCount": 43,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "IS",
+      "path": "2025/IS.json",
+      "rowCount": 134,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "MH",
+      "path": "2025/MH.json",
+      "rowCount": 52,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "MM",
+      "path": "2025/MM.json",
+      "rowCount": 84,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "MS",
+      "path": "2025/MS.json",
+      "rowCount": 134,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "NT",
+      "path": "2025/NT.json",
+      "rowCount": 76,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "OT",
+      "path": "2025/OT.json",
+      "rowCount": 60,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "PH",
+      "path": "2025/PH.json",
+      "rowCount": 138,
+      "provenance": "official"
+    },
+    {
       "year": 2025,
       "county": "SB",
       "path": "2025/SB.json",
       "rowCount": 74,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "SJ",
+      "path": "2025/SJ.json",
+      "rowCount": 47,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "SM",
+      "path": "2025/SM.json",
+      "rowCount": 67,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "SV",
+      "path": "2025/SV.json",
+      "rowCount": 145,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "TL",
+      "path": "2025/TL.json",
+      "rowCount": 33,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "TM",
+      "path": "2025/TM.json",
+      "rowCount": 122,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "TR",
+      "path": "2025/TR.json",
+      "rowCount": 45,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "VL",
+      "path": "2025/VL.json",
+      "rowCount": 70,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "VN",
+      "path": "2025/VN.json",
+      "rowCount": 61,
+      "provenance": "official"
+    },
+    {
+      "year": 2025,
+      "county": "VS",
+      "path": "2025/VS.json",
+      "rowCount": 73,
       "provenance": "official"
     }
   ]

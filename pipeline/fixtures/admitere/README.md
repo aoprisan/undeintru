@@ -1,12 +1,16 @@
 # Official admission archive snapshots
 
-Complete Sibiu specialization responses downloaded on 2026-09-15. Each file
+Complete specialization responses for all 41 counties and București in 2025
+and 2026. Sibiu was downloaded on 2026-09-15; the other counties on
+2026-09-16. Each file
 has a `.url` sidecar. HTML and JavaScript are unmodified reference fixtures,
 not app assets; their external scripts are never executed by the app.
 
 The county HTML labels `data-api-source="data/specialization"` and maps the
 JSON fields to table columns. Its linked `script/repartizare.js` appends
 `.json` and loads the complete array (pagination is client-side).
+
+The following counts describe the original Sibiu reference snapshots:
 
 | Year | Rows | Offered seats | Format |
 | --- | ---: | ---: | --- |
@@ -21,8 +25,10 @@ Historical matching therefore uses the school code, course label, profile,
 track, and teaching language, with bilingual and dual status retained in the
 course label. Ambiguous matches are excluded.
 
-2026 includes 37 dual courses. A published `um: null` remains null. A course
+The Sibiu 2026 snapshot includes 37 dual courses. A published `um: null` remains null. A course
 with unfilled seats can still have a published cutoff; that value is preserved.
+Occupied counts can also exceed offered seats in the official response; both
+counts are retained unchanged.
 These are computerized allocation results, not a complete catalogue of
 aptitude-gated or later-round admissions.
 

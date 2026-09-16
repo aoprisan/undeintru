@@ -125,17 +125,17 @@ specification, measurements and limits in [`docs/MARKS.md`](docs/MARKS.md).
 
 ## Real data, and what is still synthetic
 
-The published cutoffs are now official Sibiu computerized-allocation results:
-117 courses in 2026 and 74 in 2025, from the ministry's static archive. The
+The published cutoffs cover all 41 counties and București in 2025 and 2026,
+from the ministry's official computerized-allocation archive. The
 complete source snapshots and URL sidecars are committed under
 `pipeline/fixtures/admitere/`. The importer preserves bilingual and dual
-courses and missing cutoffs. The 27 unambiguous course matches that filled in both
+courses and missing cutoffs. In Sibiu, the 27 unambiguous course matches that filled in both
 years supply the model's observed changes; course codes were reassigned
 in 2026, so matching uses school and course details.
 
 | | source | real? |
 | --- | --- | --- |
-| Cutoffs per school and specialization, SB 2025–2026 | static.admitere.edu.ro | **yes**, 191 course-year records |
+| Cutoffs per school and specialization, all counties 2025–2026 | static.admitere.edu.ro | **yes**, 84 county-year datasets |
 | School→exam calibration | data.gov.ro, EN 2025 | **yes**, 143,183 candidates |
 | The media formula, both branches | verified against EN 2025 | **yes**, all 152,235 rows |
 | Marks-model backtest in CI | data.gov.ro, EN 2026 | **yes**, out of sample |

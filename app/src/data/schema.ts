@@ -229,12 +229,10 @@ function checkRow(c: Checker, path: string, value: unknown): void {
   c.str(`${path}.specLabel`, row['specLabel']);
   c.str(`${path}.profile`, row['profile'], { allowEmpty: true });
   c.str(`${path}.limba`, row['limba'], { allowEmpty: true });
-  const seats = c.int(`${path}.seats`, row['seats'], { min: 0 });
+  c.int(`${path}.seats`, row['seats'], { min: 0 });
   if (row['occupiedSeats'] !== undefined) {
-    const occupied = c.int(`${path}.occupiedSeats`, row['occupiedSeats'], { min: 0 });
-    if (occupied !== undefined && seats !== undefined && occupied > seats) {
-      c.fail(`${path}.occupiedSeats`, 'occupied seats exceed capacity');
-    }
+    // Official allocations can exceed the originally offered places. Preserve both counts.
+    c.int(`${path}.occupiedSeats`, row['occupiedSeats'], { min: 0 });
   }
 
   const filiera = row['filiera'];
