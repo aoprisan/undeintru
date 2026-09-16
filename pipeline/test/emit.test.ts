@@ -1,11 +1,18 @@
+import * as fs from 'node:fs/promises';
 import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { emit } from '../src/emit.js';
 import type { NormalizedFile } from '../src/normalize.js';
 import { assertCountyDataset, assertDatasetIndex, type AdmissionRow } from '../src/schema.js';
+
+vi.mock('node:fs/promises', async (importOriginal) => ({
+  ...await importOriginal<typeof fs>(),
+}));
+
+afterEach(() => { vi.restoreAllMocks(); });
 
 const NOW = new Date('2024-08-01T12:00:00.000Z');
 
@@ -146,5 +153,47 @@ describe('emit', () => {
     const first = await readFile(join(outDir, '2024', 'SB.json'), 'utf8');
     await emit({ normalizedDir, outDir, now: NOW });
     expect(await readFile(join(outDir, '2024', 'SB.json'), 'utf8')).toBe(first);
+  });
+});
+
+describe('publication recovery', () => {
+  async function initialPublication(): Promise<string> {
+    await writeNormalized({ year: 2024, county: 'SB', provenance: 'official', sources: [], rows: [baseRow] });
+    await emit({ normalizedDir, outDir, now: NOW });
+    await writeNormalized({ year: 2024, county: 'SB', provenance: 'official', sources: [], rows: [] });
+    return readFile(join(outDir, '2024/SB.json'), 'utf8');
+  }
+
+  it('preserves the previous publication when staging fails', async () => {
+    const previous = await initialPublication();
+    const previousIndex = await readFile(join(outDir, 'index.json'), 'utf8');
+    const write = fs.writeFile;
+    vi.spyOn(fs, 'writeFile').mockImplementation(async (...args) => {
+      if (typeof args[0] === 'string' && args[0].endsWith('index.json')) throw new Error('disk full');
+      return write(...args);
+    });
+    await expect(emit({ normalizedDir, outDir, now: NOW })).rejects.toThrow('disk full');
+    expect(await readFile(join(outDir, '2024/SB.json'), 'utf8')).toBe(previous);
+    expect(await readFile(join(outDir, 'index.json'), 'utf8')).toBe(previousIndex);
+    expect((await fs.readdir(root)).filter((name) => name.startsWith('.public-emit-'))).toEqual([]);
+  });
+
+  it('restores the previous directory if installation fails', async () => {
+    const previous = await initialPublication();
+    const rename = fs.rename;
+    vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+      if (String(from).endsWith('/next')) throw new Error('installation failed');
+      return rename(from, to);
+    });
+    await expect(emit({ normalizedDir, outDir, now: NOW })).rejects.toThrow('installation failed');
+    expect(await readFile(join(outDir, '2024/SB.json'), 'utf8')).toBe(previous);
+  });
+
+  it('removes obsolete files when installing a complete generation', async () => {
+    await initialPublication();
+    await writeFile(join(outDir, 'obsolete.json'), '{}');
+    await emit({ normalizedDir, outDir, now: NOW });
+    expect(JSON.parse(await readFile(join(outDir, '2024/SB.json'), 'utf8'))).toMatchObject({ rows: [] });
+    await expect(readFile(join(outDir, 'obsolete.json'))).rejects.toThrow();
   });
 });

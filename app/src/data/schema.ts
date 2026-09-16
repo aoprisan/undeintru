@@ -407,3 +407,19 @@ export function assertDatasetIndex(value: unknown, what = 'dataset index'): Data
 export function areYearsComparable(a: number, b: number): boolean {
   return a >= MEDIA_FORMULA_EPOCH_YEAR === (b >= MEDIA_FORMULA_EPOCH_YEAR);
 }
+
+/** Validate both the payload and its identity in the requested index entry. */
+export function assertIndexedDataset(value: unknown, entry: DatasetIndexEntry): CountyDataset {
+  const dataset = assertCountyDataset(value, entry.path);
+  const issues: ValidationIssue[] = [];
+  for (const key of ['county', 'year', 'provenance'] as const) {
+    if (dataset[key] !== entry[key]) {
+      issues.push({ path: `$.${key}`, message: `expected ${entry[key]}, got ${dataset[key]}` });
+    }
+  }
+  if (dataset.rows.length !== entry.rowCount) {
+    issues.push({ path: '$.rows', message: `expected ${entry.rowCount} rows, got ${dataset.rows.length}` });
+  }
+  if (issues.length > 0) throw new SchemaValidationError(entry.path, issues);
+  return dataset;
+}

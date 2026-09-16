@@ -83,3 +83,35 @@ calibrations are independent of the newly populated admission cutoffs.
   variance accumulates over the forecast horizon.
 - Regression tests cover occupancy, missing marks, four-year uncertainty, the
   overall-average calibration input, and unsupported mother-tongue candidates.
+
+## Interface reliability and evidence wording — 2026-09-16
+
+- Admission bands are labelled as indicative; the explanation distinguishes
+  the model's nominal 80% interval from the measured 46.68% held-out coverage.
+  Revised 2027 bands are explicitly described as independently unvalidated.
+  The strongest displayed label is now “favorabil în model”, not “aproape sigur”.
+- County changes hide old results while loading. Only the latest request may
+  publish data or errors; failed loads offer retry and allow another selection.
+- Offline regression tests cover stale successes, stale failures, and retry.
+  Browser checks exercised delayed responses, HTTP failure, mark changes during
+  failure, successful retry, and desktop/360px mobile layouts.
+- A further archive check found a search-indexed 2024 Brașov allocation page,
+  but direct retrieval timed out, as did the 2023 Sibiu allocation page.
+  No additional historical snapshots were verified or published.
+
+## Input and publication integrity — 2026-09-16
+
+- Direct admission averages must be within 1–10. Decimal digits are truncated
+  to integer hundredths before scoring; values such as 9.86 retain their exact
+  hundredth, while 9.855 becomes 9.85.
+- Downloaded county datasets must match the requested index entry's county,
+  year, provenance, and row count as well as the shared schema.
+- Emission stages a complete generation on the destination filesystem before
+  replacing the output directory. Installation failures restore the previous
+  directory; if restoration itself fails, the staging directory retains the
+  backup under `previous` for manual recovery. Successful emission removes
+  obsolete files. Run emission against build inputs, not a live serving
+  directory: the portable two-rename swap has a brief gap and does not provide
+  crash-atomic publication.
+- Offline regression tests cover input bounds and truncation, index mismatches,
+  staging failure, installation rollback, and removal of obsolete files.

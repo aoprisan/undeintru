@@ -1,6 +1,6 @@
 import './style.css';
 import {
-  assertCountyDataset,
+  assertIndexedDataset,
   assertDatasetIndex,
   MEDIA_FORMULA_EPOCH_YEAR,
   type AdmissionRow,
@@ -9,6 +9,8 @@ import {
   type DatasetIndexEntry,
   type Filiera,
 } from './data/schema.js';
+import { parseMediaInput } from './data/media-input.js';
+import { latestLoad } from './data/latest-load.js';
 import { countyName } from './data/counties.js';
 import { reloadOnNewServiceWorker } from './sw-update.js';
 import {
@@ -99,7 +101,7 @@ function fold(s: string): string {
 }
 
 const CHANCE_LABEL: Readonly<Record<Chance, string>> = {
-  sigur: 'aproape sigur',
+  sigur: 'favorabil în model',
   probabil: 'probabil',
   incert: 'incert',
   'putin probabil': 'puțin probabil',
@@ -542,6 +544,7 @@ function buildUi(index: DatasetIndex): void {
   const verdictSub = el('p', { class: 'verdict-sub' });
   const epoch = el('p', { class: 'epoch' });
   const banner = el('div', { class: 'banner', hidden: 'hidden' });
+  const retry = el('button', { type: 'button', class: 'chip', hidden: 'hidden' }, 'Încearcă din nou');
 
   const estimator = buildEstimator((mean, sd, grade) => {
     estimatedGrade = grade;
@@ -635,6 +638,7 @@ function buildUi(index: DatasetIndex): void {
         ),
         ruler,
         el('div', { 'aria-live': 'polite' }, verdict, verdictSub),
+        retry,
         epoch,
       ),
       banner,
@@ -703,10 +707,9 @@ function buildUi(index: DatasetIndex): void {
   let filiera: Filiera | 'toate' = 'toate';
 
   function currentMedia(): number | null {
-    const raw = mediaInput.value.trim();
-    if (raw === '') return null;
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? parsed : null;
+    const media = parseMediaInput(mediaInput.value);
+    mediaInput.setAttribute('aria-invalid', String(mediaInput.value !== '' && media === null));
+    return media;
   }
 
   function drawRuler(rows: readonly AdmissionRow[]): void {
@@ -790,15 +793,16 @@ function buildUi(index: DatasetIndex): void {
 
     epoch.textContent =
       `fiecare liniuță = un prag · praguri ${model.baseYear} → estimare ${model.targetYear} · ` +
-      `interval 80% ±${(model.sd * Z_80).toFixed(2)}`;
+      `bandă orientativă ±${(model.sd * Z_80).toFixed(2)}`;
 
     modelNote.textContent =
-      model.evidence === 'estimated'
-        ? `Modelul e calibrat pe ${model.observedShifts.length + 1} ani de praguri din ${county}: ` +
-          `pragul de anul viitor cade, în 8 cazuri din 10, la ±${(model.sd * Z_80).toFixed(2)} puncte ` +
-          'de cel de anul trecut. De asta vezi o bandă, nu un număr.'
-        : `Istoricul e scurt (${model.observedShifts.length + 1} ani), așa că lățimea benzii vine din ` +
-          `valori implicite prudente: ±${(model.sd * Z_80).toFixed(2)} puncte. Ia rezultatele ca orientare.`;
+      `Banda pentru ${model.targetYear} arată intervalul de 80% presupus de model, nu o precizie verificată. ` +
+      (model.evidence === 'estimated'
+        ? 'Lățimea este estimată din variațiile istorice. '
+        : 'Istoricul este scurt; lățimea combină valori implicite cu variațiile observate. ') +
+      'În testul pe 1.504 specializări din 2026, folosind doar date din 2025, ' +
+      '46,68% dintre praguri au fost în banda de 80%. Benzile revizuite pentru 2027 ' +
+      'nu au încă o validare pe rezultate reale independente. Etichetele sunt orientative, nu garanții de admitere.';
 
     // the list
     const needle = fold(search.value.trim());
@@ -876,55 +880,89 @@ function buildUi(index: DatasetIndex): void {
     }
   }
 
-  async function selectCounty(code: string): Promise<void> {
-    verdict.textContent = 'Se încarcă…';
-    verdictSub.textContent = '';
-
+  const loadCounty = latestLoad(async (code: string) => {
     const entries = counties.get(code) ?? [];
-    const datasets: CountyDataset[] = [];
-    for (const entry of entries) {
-      datasets.push(assertCountyDataset(await loadJson(entry.path), entry.path));
-    }
+    const datasets = await Promise.all(entries.map(async (entry) =>
+      assertIndexedDataset(await loadJson(entry.path), entry)));
     datasets.sort((a, b) => a.year - b.year);
+    if (datasets.length === 0) throw new Error(`no datasets for ${code}`);
+    return datasets;
+  });
+  let countyRequest = 0;
 
-    const newest = datasets[datasets.length - 1];
-    if (!newest) throw new Error(`no datasets for ${code}`);
+  async function selectCounty(code: string): Promise<void> {
+    const request = ++countyRequest;
+    model = null;
+    latest = null;
+    history = [];
+    chart.hidden = true;
+    ruler.hidden = true;
+    emptyState.hidden = true;
+    banner.hidden = true;
+    retry.hidden = true;
+    epoch.textContent = '';
+    modelNote.textContent = '';
+    dataNote.textContent = '';
+    filterNote.textContent = '';
+    verdict.textContent = `Se încarcă datele pentru ${countyName(code)}…`;
+    verdictSub.textContent = '';
+    try {
+      const result = await loadCounty(code);
+      if (result.kind === 'stale') return;
+      if (result.kind === 'error') throw new Error('county load failed');
+      const datasets = result.value;
 
-    latest = newest;
-    history = datasets;
-    refit();
+      const newest = datasets[datasets.length - 1];
+      if (!newest) throw new Error(`no datasets for ${code}`);
 
-    // Rows are built once per county and then only repainted, so the entry
-    // animation runs on arrival and never again on a keystroke.
-    views = new Map(
-      [...newest.rows]
-        .sort((a, b) => (b.lastMedia ?? -1) - (a.lastMedia ?? -1))
-        .map((row, i) => [specKey(row), buildRow(row, i)]),
-    );
+      latest = newest;
+      history = datasets;
+      refit();
 
-    drawRuler(newest.rows.filter((row) => !hasVacancies(row) && !row.vocational));
-
-    const synthetic = datasets.some((d) => d.provenance === 'synthetic');
-    banner.hidden = !synthetic;
-    if (synthetic) {
-      banner.replaceChildren(
-        el('strong', {}, 'Date simulate.'),
-        'Pragurile de mai jos sunt generate ca să testeze aplicația și modelul. Nu sunt ' +
-          'cifre reale și nicio decizie nu ar trebui luată după ele.',
+      // Rows are built once per county and then only repainted, so the entry
+      // animation runs on arrival and never again on a keystroke.
+      views = new Map(
+        [...newest.rows]
+          .sort((a, b) => (b.lastMedia ?? -1) - (a.lastMedia ?? -1))
+          .map((row, i) => [specKey(row), buildRow(row, i)]),
       );
-    }
-    dataNote.textContent = synthetic
-      ? 'Deocamdată sunt date simulate, generate în acest proiect. Cifrele reale vin din ' +
-        'listele publicate pe admitere.edu.ro, descărcate și verificate înainte de publicare.'
-      : `Praguri publicate pe admitere.edu.ro pentru ${countyName(code)}, ${newest.year}.`;
 
-    chart.classList.add('entering');
-    refresh();
-    window.setTimeout(() => {
-      chart.classList.remove('entering');
-    }, 1200);
+      drawRuler(newest.rows.filter((row) => !hasVacancies(row) && !row.vocational));
+
+      const synthetic = datasets.some((d) => d.provenance === 'synthetic');
+      banner.hidden = !synthetic;
+      if (synthetic) {
+        banner.replaceChildren(
+          el('strong', {}, 'Date simulate.'),
+          'Pragurile de mai jos sunt generate ca să testeze aplicația și modelul. Nu sunt ' +
+            'cifre reale și nicio decizie nu ar trebui luată după ele.',
+        );
+      }
+      dataNote.textContent = synthetic
+        ? 'Deocamdată sunt date simulate, generate în acest proiect. Cifrele reale vin din ' +
+          'listele publicate pe admitere.edu.ro, descărcate și verificate înainte de publicare.'
+        : `Praguri publicate pe admitere.edu.ro pentru ${countyName(code)}, ${newest.year}.`;
+
+      chart.hidden = false;
+      ruler.hidden = false;
+      chart.classList.add('entering');
+      refresh();
+      window.setTimeout(() => {
+        if (request === countyRequest) chart.classList.remove('entering');
+      }, 1200);
+    } catch {
+      if (request !== countyRequest) return;
+      model = null;
+      latest = null;
+      chart.hidden = true;
+      ruler.hidden = true;
+      verdict.textContent = `Datele pentru ${countyName(code)} nu s-au încărcat.`;
+      verdictSub.textContent = 'Verifică legătura la internet, încearcă din nou sau alege alt județ.';
+      retry.hidden = false;
+    }
   }
 
+  retry.addEventListener('click', () => void selectCounty(countySelect.value));
   countySelect.addEventListener('change', () => void selectCounty(countySelect.value));
   mediaInput.addEventListener('input', () => {
     // A typed media is an exam result: exact, and no longer the estimate.

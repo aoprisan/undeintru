@@ -7,8 +7,8 @@
  * not half-publish.
  */
 
-import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, mkdtemp, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
 
 import { NORMALIZED_DIR, PUBLIC_DATA_DIR } from './paths.js';
 import type { NormalizedFile } from './normalize.js';
@@ -129,19 +129,46 @@ export async function emit(options: EmitOptions = {}): Promise<EmitResult> {
       .sort((a, b) => b.year - a.year || a.county.localeCompare(b.county)),
   });
 
-  const written: { path: string; rowCount: number }[] = [];
-  for (const { entry, dataset } of validated) {
-    const path = join(outDir, entry.path);
-    await mkdir(join(outDir, String(entry.year)), { recursive: true });
-    await writeFile(path, `${JSON.stringify(dataset, null, 2)}\n`, 'utf8');
-    written.push({ path, rowCount: entry.rowCount });
-    process.stdout.write(`Emitted ${entry.rowCount} rows -> ${path}\n`);
+  // Build a complete generation beside the destination (on the same filesystem).
+  // This command publishes build inputs; it must not run against a live server.
+  const destination = resolve(outDir);
+  await mkdir(dirname(destination), { recursive: true });
+  const staging = await mkdtemp(join(dirname(destination), `.${basename(destination)}-emit-`));
+  const next = join(staging, 'next');
+  const previous = join(staging, 'previous');
+  const state = { hasPrevious: false };
+  try {
+    await mkdir(next);
+    for (const { entry, dataset } of validated) {
+      await mkdir(join(next, String(entry.year)), { recursive: true });
+      await writeFile(join(next, entry.path), `${JSON.stringify(dataset, null, 2)}\n`, 'utf8');
+    }
+    await writeFile(join(next, 'index.json'), `${JSON.stringify(index, null, 2)}\n`, 'utf8');
+    try {
+      await rename(destination, previous);
+      state.hasPrevious = true;
+    } catch (error) {
+      if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
+    }
+    try {
+      await rename(next, destination);
+    } catch (error) {
+      if (state.hasPrevious) {
+        // If rollback itself fails, retain the backup for manual recovery.
+        await rename(previous, destination);
+        state.hasPrevious = false;
+      }
+      throw error;
+    }
+    state.hasPrevious = false;
+  } finally {
+    if (!state.hasPrevious) await rm(staging, { recursive: true, force: true });
   }
 
+  const written = validated.map(({ entry }) => ({
+    path: join(outDir, entry.path), rowCount: entry.rowCount,
+  }));
   const indexPath = join(outDir, 'index.json');
-  await mkdir(outDir, { recursive: true });
-  await writeFile(indexPath, `${JSON.stringify(index, null, 2)}\n`, 'utf8');
   process.stdout.write(`Emitted index (${index.datasets.length} datasets) -> ${indexPath}\n`);
-
   return { datasets: written, indexPath };
 }
