@@ -87,7 +87,9 @@ describe('official archive', () => {
     const previous = await dataset(2025);
     const current = await dataset(2026);
     const model = fitCutoffModel([previous, current], 2027);
-    expect(model.observedShifts[0]?.specCount).toBe(27);
+    // 27 of these are teoretică; the rest are tehnologică courses that only match
+    // once the 2026 calificare is read back as a 2025 domeniu (courseDomains.ts).
+    expect(model.observedShifts[0]?.specCount).toBe(39);
     const row = current.rows.find((row) => row.specId === '103');
     if (!row) throw new Error('Missing Lazar row');
     expect(predict(model, specKey(row), 9.5).kind).toBe('estimate');
@@ -98,6 +100,6 @@ describe('official archive', () => {
     expect(fitCutoffModel([previous, changed], 2027).observedShifts).toEqual([]);
     // A duplicate course identity is not resolved by arbitrary array ordering.
     const duplicated = { ...current, rows: [...current.rows, { ...row, specId: 'duplicate' }] };
-    expect(fitCutoffModel([previous, duplicated], 2027).observedShifts[0]?.specCount).toBe(26);
+    expect(fitCutoffModel([previous, duplicated], 2027).observedShifts[0]?.specCount).toBe(38);
   });
 });

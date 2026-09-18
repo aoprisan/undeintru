@@ -10,6 +10,7 @@ import { DEFAULT_MOCK_SEED, DEFAULT_MOCK_YEARS, writeMock } from './mock/index.j
 import { emit } from './emit.js';
 import { harvest } from './harvest.js';
 import { normalize } from './normalize.js';
+import { fitAliases } from './alias/fit.js';
 
 const USAGE = `undeintru pipeline
 
@@ -35,6 +36,14 @@ const USAGE = `undeintru pipeline
 
   emit       Validate pipeline/normalized/ against the shared schema and
              publish to app/public/data/v1/.
+
+  alias      [--previous 2025] [--current 2026] [--model]
+             Propose the calificare -> domeniu table that lets tehnologică
+             courses match across the 2025/2026 vocabulary change, and print
+             it for review. Offline by default; --model additionally asks
+             TypeSafe Jev and reports where it disagrees, which needs
+             TYPESAFE_API_KEY and @typesafe-ai/sdk. Prints, never writes:
+             paste the reviewed table into app/src/model/courseDomains.ts.
 
   mock       --county <code> [--years 2023,2024] [--seed <n>]
              Write SYNTHETIC normalized data, for exercising the pipeline and
@@ -101,6 +110,13 @@ function yearList(raw: string | true | undefined, fallback: readonly number[]): 
  */
 const DEFAULT_HARVEST_YEARS: readonly number[] = [2023, 2024, 2025, 2026];
 
+/**
+ * The generation pair the domeniu vocabulary changed across: 2025 publishes the
+ * domeniu, 2026 the calificare. See `app/src/model/courseDomains.ts`.
+ */
+const DEFAULT_ALIAS_PREVIOUS = 2025;
+const DEFAULT_ALIAS_CURRENT = 2026;
+
 function requiredString(flags: Flags, name: string): string {
   const raw = flags.options.get(name);
   if (typeof raw !== 'string' || raw === '') throw new Error(`Missing --${name}`);
@@ -154,6 +170,16 @@ async function main(argv: readonly string[]): Promise<void> {
     }
     case 'emit': {
       await emit();
+      return;
+    }
+    case 'alias': {
+      const previous = flags.options.get('previous');
+      const current = flags.options.get('current');
+      await fitAliases({
+        previousYear: typeof previous === 'string' ? Number(previous) : DEFAULT_ALIAS_PREVIOUS,
+        currentYear: typeof current === 'string' ? Number(current) : DEFAULT_ALIAS_CURRENT,
+        useModel: flags.options.get('model') === true,
+      });
       return;
     }
     case 'mock': {

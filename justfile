@@ -50,6 +50,13 @@ archive:
 emit:
     npm run --workspace pipeline --silent cli -- emit
 
+# Propose the calificare -> domeniu table for app/src/model/courseDomains.ts.
+# Offline. Pass `--model` to also ask TypeSafe Jev where the offline signals
+# disagree; that needs TYPESAFE_API_KEY and is the only recipe here that can
+# reach a third party. Prints for review; never writes.
+alias-fit *flags="":
+    npm run --workspace pipeline --silent cli -- alias {{flags}}
+
 # --- real exam results (data.gov.ro) ---------------------------------------
 # Network-only, like `fetch`; never run by tests or CI.
 

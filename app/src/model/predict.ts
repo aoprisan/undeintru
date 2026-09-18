@@ -50,6 +50,7 @@ import {
   type AdmissionRow,
   type CountyDataset,
 } from '../data/schema.js';
+import { resolveSpecLabel } from './courseDomains.js';
 
 /**
  * Fallback spread of specialization-level noise, in media points, used when
@@ -87,9 +88,18 @@ export function hasVacancies(row: AdmissionRow): boolean {
   return row.occupiedSeats !== undefined && row.occupiedSeats < row.seats;
 }
 
-/** Stable course identity across reassigned option codes; ambiguous matches are excluded. */
+/**
+ * Stable course identity across reassigned option codes; ambiguous matches are excluded.
+ *
+ * Tehnologică labels are first translated back to the 2025 domeniu vocabulary
+ * (see {@link resolveSpecLabel}), because the 2026 generation publishes the
+ * calificare where 2025 published the domeniu. Without that, no tehnologică
+ * course matches its own previous year — the two vocabularies are disjoint.
+ * A label the table does not cover keeps its published spelling, so an
+ * incomplete table costs matches but never invents one.
+ */
 const identity = (row: AdmissionRow): string => JSON.stringify([
-  row.schoolCode, row.specLabel, row.profile, row.filiera, row.limba,
+  row.schoolCode, resolveSpecLabel(row.specLabel) ?? row.specLabel, row.profile, row.filiera, row.limba,
 ].map((part) => part.normalize('NFC').toLocaleLowerCase('ro-RO')
   .replace(/[şţ]/g, (letter) => letter === 'ş' ? 'ș' : 'ț')));
 export function uniqueCourses(rows: readonly AdmissionRow[]): Map<string, AdmissionRow> {
