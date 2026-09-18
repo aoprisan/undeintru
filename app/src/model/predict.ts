@@ -49,6 +49,7 @@ import {
   MEDIA_FORMULA_EPOCH_YEAR,
   type AdmissionRow,
   type CountyDataset,
+  type Filiera,
 } from '../data/schema.js';
 import { resolveSpecLabel } from './courseDomains.js';
 
@@ -171,6 +172,86 @@ export interface ObservedShift {
   readonly specCount: number;
 }
 
+/**
+ * Minimum matched courses behind a shift before it is allowed to widen a band,
+ * so a single volatile course cannot set the interval for a whole filiera.
+ */
+const MIN_SHIFT_COURSES = 8;
+
+/** One population's year-over-year evidence: the input to {@link estimateSpread}. */
+interface SpreadInput {
+  /** Deltas with their own year's shift removed. */
+  readonly residuals: readonly number[];
+  /** Deltas as they stand, which is one realisation each of next year's error. */
+  readonly oneStepErrors: readonly number[];
+  /** The shifts observed for this population, oldest first. */
+  readonly shifts: readonly ObservedShift[];
+}
+
+interface Spread {
+  readonly sigma: number;
+  readonly tau: number;
+  readonly sd: number;
+  readonly evidence: 'estimated' | 'prior';
+}
+
+/**
+ * Turn one population's history into a predictive spread.
+ *
+ * Extracted so the pooled county fit and each filiera's fit are the same
+ * calculation rather than two that drift apart.
+ *
+ * @param horizon `sqrt(targetYear - baseYear)`; independent annual increments
+ *   in the random-walk model accumulate variance.
+ */
+function estimateSpread(input: SpreadInput, horizon: number): Spread {
+  // sigma: spread of what is left once the shared year shift is removed.
+  const sigmaEstimate = input.residuals.length >= MIN_SHIFT_COURSES
+    ? robustScale(input.residuals)
+    : null;
+  // tau: spread of the year shifts themselves. Reported for diagnostics; it is
+  // too noisy on a short history to drive the interval on its own.
+  const tauEstimate = input.shifts.length >= 3
+    ? robustScale(input.shifts.map((shift) => shift.shift))
+    : null;
+
+  /*
+   * The predictive spread comes from the pooled one-step-ahead errors, which
+   * needs at least a few distinct year pairs to be meaningful: with a single
+   * observed pair every delta shares one county shift, so their spread
+   * measures `sigma` alone and silently drops `tau` — precisely the
+   * overconfidence this is meant to avoid.
+   *
+   * The pooled spread still understates `tau` slightly, because k observed
+   * shifts sample its spread with k-1 degrees of freedom. The correction below
+   * is small but it is the difference between 80% intervals that cover 80% and
+   * ones that cover 74%.
+   */
+  const shiftCount = input.shifts.length;
+  const pooled = shiftCount >= 3 ? robustScale(input.oneStepErrors) : null;
+  const corrected =
+    pooled === null ? null : pooled * Math.sqrt(shiftCount / Math.max(1, shiftCount - 1));
+
+  // One or two seasons cannot establish that either component is quieter
+  // than its prior. In particular, centring every delta on its annual median
+  // must not erase evidence of a large shared shock. Use the RMS of observed
+  // shifts about ZERO (the forecast assumption), with a prior floor. Require
+  // eight matched courses per shift to avoid learning from a single course.
+  // This widens uncertainty; it does not extrapolate the direction of a shock.
+  const reliableShifts = input.shifts.filter((shift) => shift.specCount >= MIN_SHIFT_COURSES);
+  const shortHistoryTau = reliableShifts.length === 0 ? TAU_PRIOR : Math.max(
+    TAU_PRIOR,
+    Math.sqrt(reliableShifts.reduce((sum, shift) => sum + shift.shift ** 2, 0) /
+      reliableShifts.length),
+  );
+  const sigma = corrected === null
+    ? Math.max(SIGMA_PRIOR, sigmaEstimate ?? SIGMA_PRIOR)
+    : sigmaEstimate ?? SIGMA_PRIOR;
+  const tau = corrected === null ? shortHistoryTau : tauEstimate ?? TAU_PRIOR;
+  const sd = Math.max(MIN_SD, corrected ?? Math.hypot(tau, sigma)) * horizon;
+  return { sigma, tau, sd, evidence: corrected !== null ? 'estimated' : 'prior' };
+}
+
 export interface FittedModel {
   readonly county: string;
   /** The year being predicted. */
@@ -185,6 +266,15 @@ export interface FittedModel {
   readonly sd: number;
   /** County-wide shifts actually observed in the history, oldest first. */
   readonly observedShifts: readonly ObservedShift[];
+  /**
+   * Predictive spread per filiera, for those with enough evidence of their own.
+   *
+   * {@link predict} prefers this over {@link sd}: teoretică and tehnologică
+   * cutoffs move by visibly different amounts, and one band for both is too
+   * narrow for the noisier filiera. A filiera absent here has no evidence of
+   * its own and falls back to {@link sd}.
+   */
+  readonly sdByFiliera: ReadonlyMap<Filiera, number>;
   /**
    * `estimated` when pooled errors determine the spread; `prior` when history
    * is too short and prior floors still constrain the observed components.
@@ -254,6 +344,12 @@ export function fitCutoffModel(
    * resulting intervals come out too narrow.
    */
   const oneStepErrors: number[] = [];
+  /** The same three quantities, kept apart per filiera. See {@link Spread}. */
+  const byFiliera = new Map<Filiera, {
+    residuals: number[];
+    oneStepErrors: number[];
+    shifts: ObservedShift[];
+  }>();
 
   for (let i = 1; i < sorted.length; i += 1) {
     const prev = sorted[i - 1];
@@ -265,13 +361,33 @@ export function fitCutoffModel(
     const prevByKey = uniqueCourses(prev.rows);
     const currentByKey = uniqueCourses(curr.rows);
     const deltas: number[] = [];
+    const deltasByFiliera = new Map<Filiera, number[]>();
     for (const [key, row] of currentByKey) {
       const before = prevByKey.get(key);
       // Missing or nonbinding marks contribute no competitive-cutoff delta.
       if (!before || before.lastMedia === null || row.lastMedia === null) continue;
       if (hasVacancies(row) || hasVacancies(before)) continue;
       if (row.vocational || before.vocational) continue; // aptitude-gated, different process
-      deltas.push(row.lastMedia - before.lastMedia);
+      const delta = row.lastMedia - before.lastMedia;
+      deltas.push(delta);
+      let bucket = deltasByFiliera.get(row.filiera);
+      if (!bucket) {
+        bucket = [];
+        deltasByFiliera.set(row.filiera, bucket);
+      }
+      bucket.push(delta);
+    }
+
+    for (const [filiera, bucket] of deltasByFiliera) {
+      const filieraShift = median(bucket);
+      if (filieraShift === null) continue;
+      const step = byFiliera.get(filiera) ?? { residuals: [], oneStepErrors: [], shifts: [] };
+      step.shifts.push({ year: curr.year, shift: filieraShift, specCount: bucket.length });
+      for (const d of bucket) {
+        step.residuals.push(d - filieraShift);
+        step.oneStepErrors.push(d);
+      }
+      byFiliera.set(filiera, step);
     }
 
     const shift = median(deltas);
@@ -283,49 +399,33 @@ export function fitCutoffModel(
     }
   }
 
-  // sigma: spread of what is left once the shared year shift is removed.
-  const sigmaEstimate = residuals.length >= 8 ? robustScale(residuals) : null;
-  // tau: spread of the year shifts themselves. Reported for diagnostics; it is
-  // too noisy on a short history to drive the interval on its own.
-  const shiftValues = observedShifts.map((s) => s.shift);
-  const tauEstimate = shiftValues.length >= 3 ? robustScale(shiftValues) : null;
+  const horizon = Math.sqrt(targetYear - latest.year);
+  const { sigma, tau, sd, evidence } = estimateSpread(
+    { residuals, oneStepErrors, shifts: observedShifts },
+    horizon,
+  );
 
   /*
-   * The predictive spread comes from the pooled one-step-ahead errors, which
-   * needs at least a few distinct year pairs to be meaningful: with a single
-   * observed pair every delta shares one county shift, so their spread
-   * measures `sigma` alone and silently drops `tau` — precisely the
-   * overconfidence this is meant to avoid.
+   * The same spread, per filiera.
    *
-   * The pooled spread still understates `tau` slightly, because k observed
-   * shifts sample its spread with k-1 degrees of freedom. The correction below
-   * is small but it is the difference between 80% intervals that cover 80% and
-   * ones that cover 74%.
+   * Teoretică and tehnologică are not one population. Across 2025 -> 2026 the
+   * median teoretică cutoff fell 0.42 while tehnologică fell 0.98, and the
+   * middle 80% of tehnologică moves is nearly twice as wide. Pooling them
+   * hands a tehnologică family a band sized for a teoretică course — the
+   * measured 80% interval covered 46.7% of teoretică outcomes and 15.8% of
+   * tehnologică ones.
+   *
+   * This splits the *band*, never the centre: each filiera still predicts last
+   * year's cutoff and still takes the RMS of its own shifts about zero. It
+   * widens uncertainty where the data says it is wider; it does not
+   * extrapolate a direction for anyone. A filiera without its own evidence
+   * falls back to the pooled spread rather than to a guess.
    */
-  const shiftCount = observedShifts.length;
-  const pooled = shiftCount >= 3 ? robustScale(oneStepErrors) : null;
-  const corrected =
-    pooled === null ? null : pooled * Math.sqrt(shiftCount / Math.max(1, shiftCount - 1));
-
-  // One or two seasons cannot establish that either component is quieter
-  // than its prior. In particular, centring every delta on its annual median
-  // must not erase evidence of a large shared shock. Use the RMS of observed
-  // shifts about ZERO (the forecast assumption), with a prior floor. Require
-  // eight matched courses per shift to avoid learning from a single course.
-  // This widens uncertainty; it does not extrapolate the direction of a shock.
-  const reliableShifts = observedShifts.filter((shift) => shift.specCount >= 8);
-  const shortHistoryTau = reliableShifts.length === 0 ? TAU_PRIOR : Math.max(
-    TAU_PRIOR,
-    Math.sqrt(reliableShifts.reduce((sum, shift) => sum + shift.shift ** 2, 0) /
-      reliableShifts.length),
-  );
-  const sigma = corrected === null
-    ? Math.max(SIGMA_PRIOR, sigmaEstimate ?? SIGMA_PRIOR)
-    : sigmaEstimate ?? SIGMA_PRIOR;
-  const tau = corrected === null ? shortHistoryTau : tauEstimate ?? TAU_PRIOR;
-  // Independent annual increments in the random-walk model accumulate variance.
-  const sd = Math.max(MIN_SD, corrected ?? Math.hypot(tau, sigma)) *
-    Math.sqrt(targetYear - latest.year);
+  const sdByFiliera = new Map<Filiera, number>();
+  for (const [filiera, step] of byFiliera) {
+    if (!step.shifts.some((shift) => shift.specCount >= MIN_SHIFT_COURSES)) continue;
+    sdByFiliera.set(filiera, estimateSpread(step, horizon).sd);
+  }
 
   return {
     county: latest.county,
@@ -335,7 +435,8 @@ export function fitCutoffModel(
     tau,
     sd,
     observedShifts,
-    evidence: corrected !== null ? 'estimated' : 'prior',
+    sdByFiliera,
+    evidence,
     base: new Map(latest.rows.map((r) => [specKey(r), r])),
   };
 }
@@ -388,7 +489,7 @@ export function predict(
   if (row.lastMedia === null) return { kind: 'unavailable', reason: 'no-cutoff' };
 
   const cutoff = row.lastMedia;
-  const sd = model.sd;
+  const sd = model.sdByFiliera.get(row.filiera) ?? model.sd;
   const probability = media === null ? 0.5 : normalCdf((media - cutoff) / Math.hypot(sd, mediaSd));
 
   return {

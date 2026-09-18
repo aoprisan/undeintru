@@ -791,9 +791,17 @@ function buildUi(index: DatasetIndex): void {
       verdictSub.textContent = parts.join(' ');
     }
 
+    // The band is per filiera now, so quoting one number would understate the
+    // wider one. Show the range when the filiere actually differ.
+    const bands = [model.sd, ...model.sdByFiliera.values()].map((sd) => sd * Z_80);
+    const lowBand = Math.min(...bands);
+    const highBand = Math.max(...bands);
+    const bandText = highBand - lowBand < 0.005
+      ? `±${lowBand.toFixed(2)}`
+      : `±${lowBand.toFixed(2)}–${highBand.toFixed(2)}, după filieră`;
     epoch.textContent =
       `fiecare liniuță = un prag · praguri ${model.baseYear} → estimare ${model.targetYear} · ` +
-      `bandă orientativă ±${(model.sd * Z_80).toFixed(2)}`;
+      `bandă orientativă ${bandText}`;
 
     modelNote.textContent =
       `Banda pentru ${model.targetYear} arată intervalul de 80% presupus de model, nu o precizie verificată. ` +
