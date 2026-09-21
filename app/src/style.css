@@ -1,7 +1,7 @@
 /* ---------------------------------------------------------------------------
    Unde intru — visual system
 
-   The page is one instrument: a media scale from 5 to 10, drawn once at the
+   The page is one instrument: a media scale from 1 to 10, drawn once at the
    top and repeated as a small multiple in every row, so that a single blue
    rule — the child's own media — runs down the whole list and every cutoff is
    read against it. Ink density carries probability (never hue, so the reading
@@ -743,7 +743,7 @@ select {
   white-space: nowrap;
 }
 
-/* The plot: the same 5–10 scale as the ruler above, once per row, so the blue
+/* The plot: the same 1–10 scale as the ruler above, once per row, so the blue
    line is one unbroken rule down the page. */
 
 .plot {
@@ -991,4 +991,42 @@ select {
       opacity: 0;
     }
   }
+}
+
+/* Saved preferences and factual comparisons share the existing paper layout. */
+.shortlist {
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+  background: var(--sheet);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+.shortlist h2 { margin: 0; font: 600 1.2rem var(--display); }
+.shortlist h3 { margin: 0; font-size: 1rem; }
+.shortlist p { margin: 0.4rem 0; font-size: 0.85rem; }
+.shortlist > ol { padding-left: 1.5rem; }
+.shortlist > ol > li { padding: 1rem 0; border-top: 1px solid var(--rule); }
+.shortlist-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+.chip:disabled { opacity: 0.6; cursor: default; }
+.course-actions { grid-column: 1 / -1; padding: 0.3rem 0 0.8rem; position: relative; }
+.course-history { margin-top: 0.4rem; }
+.course-history summary { cursor: pointer; font-size: 0.8rem; color: var(--ink-2); }
+.history-facts { max-width: 100%; font-size: 0.8rem; }
+.history-facts table { width: 100%; border-collapse: collapse; margin: 0.65rem 0; table-layout: fixed; }
+.history-facts caption { text-align: left; padding-bottom: 0.4rem; font-weight: 600; }
+.history-facts th, .history-facts td { text-align: left; padding: 0.35rem 0.3rem; border-bottom: 1px solid var(--rule-soft); overflow-wrap: anywhere; }
+.history-facts p { margin: 0.3rem 0; }
+.history-facts a { color: var(--pen); }
+.synthetic-note { color: var(--red); font-weight: 700; }
+@media (max-width: 46rem) {
+  .course-actions { grid-row: 3; }
+  .shortlist { padding: 0.9rem; }
+}
+@media print {
+  :root { color-scheme: light; --paper: white; --sheet: white; --ink: black; --ink-2: #333; --rule: #aaa; --rule-soft: #ccc; --pen: black; }
+  #app { padding: 0; max-width: none; }
+  main > :not(.shortlist), .shortlist button, .skip { display: none !important; }
+  .shortlist { border: 0; padding: 0; }
+  .shortlist > ol > li { break-inside: avoid; }
+  .history-facts a::after { content: ' (' attr(href) ')'; overflow-wrap: anywhere; }
 }

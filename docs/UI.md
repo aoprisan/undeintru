@@ -5,7 +5,7 @@ page is built as a single chart of one scale, and everything else is quiet.
 
 ## The scale is the design
 
-Every threshold in the county lives on the same axis: **media 5 to 10, fixed**,
+Every threshold in the county lives on the same axis: **media 1 to 10, fixed**,
 never fitted to the data. A domain that shrank to the county's own range would
 turn a tenth of a point into half the screen; the fixed scale keeps two
 counties, and two visits, comparable by eye.

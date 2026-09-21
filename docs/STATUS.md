@@ -115,3 +115,19 @@ calibrations are independent of the newly populated admission cutoffs.
   crash-atomic publication.
 - Offline regression tests cover input bounds and truncation, index mismatches,
   staging failure, installation rollback, and removal of obsolete files.
+
+## Saved preferences and historical comparison — 2026-09-21
+
+- Families can add courses across counties to an ordered shortlist, move or
+  remove them, and print the list. Grade changes and catalog sorting do not
+  change preference order. Local browser storage retains only selected course
+  snapshots; no account, analytics, or external runtime requests are added.
+- Each selection preserves its county, year, option code, provenance, source
+  links, publication timestamp, seats, occupancy, and last admitted grade.
+  The comparison uses unambiguous course identities across comparable years,
+  never option codes alone. Missing historical matches are explicitly noted.
+- Saved snapshots remain historical copies, not a live admission offer or
+  an official application form. Users must verify target-year codes, seats,
+  and eligibility. Storage errors are surfaced; printing remains available.
+- Catalog rows expose the same historical comparison and source links.
+  The shared chart now covers the full 1–10 admission-grade range.

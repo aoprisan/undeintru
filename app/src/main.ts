@@ -1,4 +1,6 @@
 import './style.css';
+import { buildShortlist, historicalFacts } from './shortlist.js';
+import { courseSnapshots } from './data/shortlist.js';
 import {
   assertIndexedDataset,
   assertDatasetIndex,
@@ -37,10 +39,10 @@ import {
  *
  * It is fixed rather than fitted to the data on purpose: a domain that shrank
  * to the county's own range would magnify a tenth of a point into half the
- * width of the screen. Five to ten is the scale the media itself lives on, and
+ * width of the screen. One to ten is the full admission-grade scale, and
  * keeping it makes two counties — and two visits — comparable by eye.
  */
-const SCALE_MIN = 5;
+const SCALE_MIN = 1;
 const SCALE_MAX = 10;
 
 const DATA_ROOT = new URL('data/v1/', document.baseURI);
@@ -144,7 +146,7 @@ function score(
 // --- one row of the list ----------------------------------------------------
 
 /**
- * A row is a small multiple of the ruler at the top: the same 5–10 scale, the
+ * A row is a small multiple of the ruler at the top: the same 1–10 scale, the
  * predicted cutoff's 80% interval drawn on it, and the family's media as a
  * rule through every row at the same x — so the whole list reads as one chart.
  */
@@ -158,7 +160,7 @@ function buildRow(row: AdmissionRow, index: number): RowView {
   const li = el('li', { class: 'row' });
   li.style.setProperty('--i', String(index));
 
-  const details = [row.specLabel, row.profile, `${row.seats} locuri`].filter(
+  const details = [row.specLabel, row.profile, `${row.seats} locuri în ${row.year}`].filter(
     (part) => part !== '',
   );
   if (row.limba !== 'Româna' && row.limba !== '') details.splice(2, 0, `predare în ${row.limba}`);
@@ -503,6 +505,7 @@ function buildGroup(): Group {
 const root = mustFind('#app');
 
 function buildUi(index: DatasetIndex): void {
+  const shortlist = buildShortlist();
   const counties = byCounty(index);
   const countyCodes = [...counties.keys()].sort();
   const firstCounty = countyCodes[0];
@@ -643,6 +646,7 @@ function buildUi(index: DatasetIndex): void {
       ),
       banner,
       estimator,
+      shortlist.section,
       el(
         'div',
         { class: 'list-controls', id: 'lista' },
@@ -924,7 +928,14 @@ function buildUi(index: DatasetIndex): void {
       views = new Map(
         [...newest.rows]
           .sort((a, b) => (b.lastMedia ?? -1) - (a.lastMedia ?? -1))
-          .map((row, i) => [specKey(row), buildRow(row, i)]),
+          .map((row, i) => {
+            const view = buildRow(row, i);
+            const facts = el('details', { class: 'course-history' },
+              el('summary', {}, 'Istoric și surse'), historicalFacts(courseSnapshots(row, datasets)));
+            const actions = el('div', { class: 'course-actions' }, shortlist.button(row, datasets), facts);
+            view.li.append(actions);
+            return [specKey(row), view] as const;
+          }),
       );
 
       drawRuler(newest.rows.filter((row) => !hasVacancies(row) && !row.vocational));
@@ -941,7 +952,7 @@ function buildUi(index: DatasetIndex): void {
       dataNote.textContent = synthetic
         ? 'Deocamdată sunt date simulate, generate în acest proiect. Cifrele reale vin din ' +
           'listele publicate pe admitere.edu.ro, descărcate și verificate înainte de publicare.'
-        : `Praguri publicate pe admitere.edu.ro pentru ${countyName(code)}, ${newest.year}.`;
+        : `Praguri publicate pe admitere.edu.ro pentru ${countyName(code)}, ${newest.year}. Locurile și codurile sunt istorice, nu oferta confirmată pentru anul estimat.`;
 
       chart.hidden = false;
       ruler.hidden = false;

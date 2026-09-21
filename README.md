@@ -155,7 +155,7 @@ does not implement throws rather than returning a half-read sheet.
 ## The interface
 
 One question, one chart. Every cutoff in the county sits on a fixed media scale
-of 5 to 10 — drawn as a ruler in the header, and again in every row of the list
+of 1 to 10 — drawn as a ruler in the header, and again in every row of the list
 — and the child's media is a single blue rule running down the whole page. A
 row's bar is the 80% interval the next cutoff can land in; the filled part is
 how much of that interval the media is above, so the model's uncertainty is the
