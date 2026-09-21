@@ -192,14 +192,15 @@ assumptions beyond the published overall V–VIII average. The estimator refuses
 mother-tongue-paper candidates because the calibration excludes them; an
 official admission average can still be entered directly.
 
-**Per-school and per-county inflation.** The table is a single national
-calibration, and generosity varies by school. The misspecification test makes
+**Per-school and per-county inflation.** The baseline table is a national
+calibration. The [Sibiu city pilot](SIBIU.md) now adjusts its subject means
+using school residuals measured in 2025 and checked against 2026; other
+locations retain the national baseline. Generosity varies by school. The misspecification test makes
 the cost concrete: give the synthetic schools **half a point more generosity
 than the calibration expects** and the model overpredicts by +0.75 while
 coverage falls from 81% to **64.9%**. A kid at a soft-grading school will be
-overestimated, in the dangerous direction. Calibrating per county is possible
-from the same file — it carries a SIIIR code — but only worth shipping if it
-survives a held-out year, which is the next thing to try.
+overestimated, in the dangerous direction. Expansion beyond Sibiu needs its
+own school-directory joins and held-out checks.
 
 **Anything about the simulare, drift, or yearly catalog noise.** All three are
 priors. None is measurable from the published results.

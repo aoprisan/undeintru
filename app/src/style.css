@@ -473,6 +473,18 @@ select {
   padding: 0 1rem 1rem;
 }
 
+.estimator-body > label {
+  display: block;
+  margin: 0.75rem 0 0.35rem;
+}
+
+#est-school {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 46rem;
+}
+
 .est-lede {
   margin: 0 0 1rem;
   padding-top: 0.85rem;

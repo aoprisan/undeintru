@@ -1,3 +1,4 @@
+import { SIBIU_SCHOOLS } from './model/sibiu-schools.js';
 import './style.css';
 import { buildShortlist, historicalFacts } from './shortlist.js';
 import { courseSnapshots } from './data/shortlist.js';
@@ -281,6 +282,10 @@ function buildEstimator(
     ...SCHOOL_GRADES.map((g) => el('option', { value: String(g) }, `clasa ${GRADE_LABELS[g]}`)),
   );
   gradeSelect.value = '8';
+  const schoolSelect = el('select', { id: 'est-school' },
+    el('option', { value: '' }, 'Altă școală / nu știu — estimare națională'),
+    ...[...SIBIU_SCHOOLS].sort((a, b) => a.name.localeCompare(b.name, 'ro')).map(school =>
+      el('option', { value: school.code }, school.name + (school.n < 20 ? ' — date insuficiente' : ''))));
   const motherTongue = el('select', { id: 'est-mother-tongue' },
     el('option', { value: '' }, 'Alege'),
     el('option', { value: 'no' }, 'Nu'),
@@ -399,6 +404,7 @@ function buildEstimator(
     }
 
     const record: StudentRecord = {
+      schoolCode: schoolSelect.value,
       currentGrade,
       school,
       takesMotherTongue: false,
@@ -418,6 +424,10 @@ function buildEstimator(
           'Relația cu media generală este calibrată pe 143.183 de candidați din 2025. ' +
           'Pentru anii rămași și simulare, incertitudinea include ipoteze nevalidate pe date reale.',
       );
+      const local = SIBIU_SCHOOLS.find(school => school.code === schoolSelect.value);
+      result.append(local && local.n >= 20
+        ? ` Pilot Sibiu: ajustare pentru ${local.name}, pe baza a ${local.n} candidați din 2025 cu medii școlare comparabile. Intervalele rămân orientative, nu sunt validate separat pentru fiecare școală.`
+        : ' Se folosește estimarea națională; nu există o ajustare locală suficient susținută pentru școala aleasă.');
       useButton.removeAttribute('disabled');
     } catch (err) {
       result.dataset['state'] = 'error';
@@ -431,6 +441,7 @@ function buildEstimator(
   gradeSelect.addEventListener('change', () => { onClear(); rebuild(); });
   sheet.addEventListener('input', () => { onClear(); recompute(); });
   motherTongue.addEventListener('change', () => { onClear(); recompute(); });
+  schoolSelect.addEventListener('change', () => { onClear(); recompute(); });
   useButton.addEventListener('click', () => {
     if (estimate) onUse(estimate.mean, estimate.sd, Number(gradeSelect.value) as SchoolGrade);
   });
@@ -458,6 +469,9 @@ function buildEstimator(
       ),
       el('label', { for: 'est-mother-tongue' }, 'Susține proba de limbă maternă?'),
       motherTongue,
+      el('label', { for: 'est-school' }, 'Școala actuală a copilului — pilot municipiul Sibiu'),
+      schoolSelect,
+      el('p', { class: 'est-lede' }, 'Alege școala unde învață acum, nu liceul dorit. Ajustarea folosește diferența observată la examen pentru aceeași medie școlară, nu un clasament. Dacă elevul a schimbat școala, estimarea națională poate fi mai potrivită. Pilotul nu acoperă proba de limbă maternă.'),
       sheet,
       result,
       useButton,

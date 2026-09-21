@@ -56,6 +56,8 @@ export const COUNTY_BY_SIIIR_PREFIX: Readonly<Record<string, string>> = {
 
 /** One candidate, as far as this repo is concerned. */
 export interface EvnatRecord {
+  /** Origin school identifier; omitted in older anonymized test fixtures. */
+  readonly schoolCode?: string;
   readonly county: string;
   readonly urban: boolean;
   /** Final mark after contestații, or null when absent from that paper. */
@@ -153,6 +155,7 @@ function toRecord(
     );
   }
   return {
+    schoolCode: code,
     county,
     urban: (row[at.mediu] ?? '').trim().toUpperCase() === 'URBAN',
     romana: parseGrade(row[at.romana] ?? '', 'nota finala romana', source),

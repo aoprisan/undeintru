@@ -64,6 +64,7 @@
  */
 
 import { Z_80 } from './predict.js';
+import { SIBIU_SCHOOLS } from './sibiu-schools.js';
 
 /** The Romanian grading scale. */
 const GRADE_MIN = 1;
@@ -90,6 +91,8 @@ export interface SimulareMarks {
 
 /** Everything the model consumes about one kid. */
 export interface StudentRecord {
+  /** Current school SIIIR code. Only the Sibiu-city pilot has local evidence. */
+  readonly schoolCode?: string;
   readonly currentGrade: SchoolGrade;
   /** Overall annual averages across all subjects, never per-subject averages. */
   readonly school: readonly YearlyMedia[];
@@ -399,6 +402,7 @@ function estimateSubject(
   subject: Subject,
   entries: readonly YearlyMedia[],
   simulareMark: number | undefined,
+  schoolOffset = 0,
 ): SubjectResult {
   const sorted = [...entries].sort((a, b) => a.grade - b.grade);
   const last = sorted[sorted.length - 1];
@@ -448,7 +452,7 @@ function estimateSubject(
   const measuredVar = calibratedSd(subject, schoolMedia) ** 2;
   const examDayVar = EXAM_DAY_SHARE * measuredVar;
 
-  let abilityMean = calibratedMean(subject, schoolMedia);
+  let abilityMean = clamp(calibratedMean(subject, schoolMedia) + schoolOffset);
   let abilityVar =
     (1 - EXAM_DAY_SHARE) * measuredVar +
     driftVar +
@@ -512,8 +516,9 @@ export function predictMarks(record: StudentRecord): MarksPrediction {
   if (simulare?.romana !== undefined) assertMark(simulare.romana, 'simulare romana');
   if (simulare?.matematica !== undefined) assertMark(simulare.matematica, 'simulare matematica');
 
-  const romana = estimateSubject('romana', record.school, simulare?.romana);
-  const matematica = estimateSubject('matematica', record.school, simulare?.matematica);
+  const local = SIBIU_SCHOOLS.find(school => school.code === record.schoolCode);
+  const romana = estimateSubject('romana', record.school, simulare?.romana, local?.romana);
+  const matematica = estimateSubject('matematica', record.school, simulare?.matematica, local?.matematica);
 
   // media = (romana + matematica) / 2, with the subject errors correlated:
   // var = (sd_r^2 + sd_m^2 + 2 rho sd_r sd_m) / 4.
