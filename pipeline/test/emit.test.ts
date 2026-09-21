@@ -197,3 +197,35 @@ describe('publication recovery', () => {
     await expect(readFile(join(outDir, 'obsolete.json'))).rejects.toThrow();
   });
 });
+
+describe('input discovery failures', () => {
+  it('preserves published files when a discovered year is not a directory', async () => {
+    await writeNormalized({ year: 2024, county: 'SB', provenance: 'official', sources: [], rows: [baseRow] });
+    await emit({ normalizedDir, outDir, now: NOW });
+    const previousIndex = await readFile(join(outDir, 'index.json'), 'utf8');
+    const previousDataset = await readFile(join(outDir, '2024/SB.json'), 'utf8');
+    await writeNormalized({ year: 2025, county: 'SB', provenance: 'official', sources: [], rows: [] });
+    await fs.rm(join(normalizedDir, '2024'), { recursive: true });
+    await writeFile(join(normalizedDir, '2024'), 'not a directory');
+
+    await expect(emit({ normalizedDir, outDir, now: NOW })).rejects.toMatchObject({ code: 'ENOTDIR' });
+    expect(await readFile(join(outDir, 'index.json'), 'utf8')).toBe(previousIndex);
+    expect(await readFile(join(outDir, '2024/SB.json'), 'utf8')).toBe(previousDataset);
+    await expect(readFile(join(outDir, '2025/SB.json'))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('propagates permission errors from input discovery', async () => {
+    const failure = Object.assign(new Error('permission denied'), { code: 'EACCES' });
+    vi.spyOn(fs, 'readdir').mockRejectedValueOnce(failure);
+    await expect(emit({ normalizedDir, outDir, now: NOW })).rejects.toBe(failure);
+  });
+
+  it('rejects traversal in an empty dataset before creating output', async () => {
+    await mkdir(join(normalizedDir, '2024'), { recursive: true });
+    await writeFile(join(normalizedDir, '2024/SB.json'), JSON.stringify({
+      year: 2024, county: '../../escaped', provenance: 'official', sources: [], rows: [],
+    }));
+    await expect(emit({ normalizedDir, outDir, now: NOW })).rejects.toThrow(/county/);
+    expect(await fs.readdir(root)).toEqual(['normalized']);
+  });
+});

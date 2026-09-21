@@ -188,3 +188,30 @@ describe('areYearsComparable', () => {
     expect(areYearsComparable(MEDIA_FORMULA_EPOCH_YEAR, MEDIA_FORMULA_EPOCH_YEAR)).toBe(true);
   });
 });
+
+describe('dataset and index identity bounds', () => {
+  it.each([
+    { county: '../../escaped' }, { county: '/tmp' }, { county: 'sb' },
+    { county: 'SB\\..' }, { county: '' }, { year: 1999 }, { year: 2101 },
+    { year: 2024.5 },
+  ])('rejects invalid identity even with no rows: %j', (change) => {
+    const identity = { year: 2024, county: 'SB', ...change };
+    expect(() => assertCountyDataset(dataset({ ...identity, rows: [] }))).toThrow(SchemaValidationError);
+    expect(() => assertDatasetIndex({
+      schemaVersion: SCHEMA_VERSION,
+      generatedAt: '2024-08-01T00:00:00.000Z',
+      datasets: [{
+        ...identity, path: `${identity.year}/${identity.county}.json`,
+        rowCount: 0, provenance: 'official',
+      }],
+    })).toThrow(SchemaValidationError);
+  });
+
+  it.each([2000, 2100])('accepts the year boundary %i and a one-letter county', (year) => {
+    expect(() => assertCountyDataset(dataset({ year, county: 'B', rows: [] }))).not.toThrow();
+    expect(() => assertDatasetIndex({
+      schemaVersion: SCHEMA_VERSION, generatedAt: '2024-08-01T00:00:00.000Z',
+      datasets: [{ year, county: 'B', path: `${year}/B.json`, rowCount: 0, provenance: 'official' }],
+    })).not.toThrow();
+  });
+});

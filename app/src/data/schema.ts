@@ -209,19 +209,28 @@ function isProvenance(v: unknown): v is Provenance {
   return typeof v === 'string' && (PROVENANCES as readonly string[]).includes(v);
 }
 
+function checkYear(c: Checker, path: string, value: unknown): number | undefined {
+  const year = c.int(path, value);
+  if (year !== undefined && (year < MIN_YEAR || year > MAX_YEAR)) {
+    c.fail(path, `year ${year} is outside ${MIN_YEAR}..${MAX_YEAR}`);
+  }
+  return year;
+}
+
+function checkCounty(c: Checker, path: string, value: unknown): string | undefined {
+  const county = c.str(path, value);
+  if (county !== undefined && !COUNTY_RE.test(county)) {
+    c.fail(path, `expected an uppercase county code, got ${JSON.stringify(county)}`);
+  }
+  return county;
+}
+
 function checkRow(c: Checker, path: string, value: unknown): void {
   const row = c.record(path, value);
   if (!row) return;
 
-  const year = c.int(`${path}.year`, row['year']);
-  if (year !== undefined && (year < MIN_YEAR || year > MAX_YEAR)) {
-    c.fail(`${path}.year`, `year ${year} is outside ${MIN_YEAR}..${MAX_YEAR}`);
-  }
-
-  const county = c.str(`${path}.county`, row['county']);
-  if (county !== undefined && !COUNTY_RE.test(county)) {
-    c.fail(`${path}.county`, `expected an uppercase county code, got ${JSON.stringify(county)}`);
-  }
+  checkYear(c, `${path}.year`, row['year']);
+  checkCounty(c, `${path}.county`, row['county']);
 
   c.str(`${path}.schoolCode`, row['schoolCode']);
   c.str(`${path}.schoolName`, row['schoolName']);
@@ -298,8 +307,8 @@ export function assertCountyDataset(value: unknown, what = 'county dataset'): Co
     if (root['schemaVersion'] !== SCHEMA_VERSION) {
       c.fail('$.schemaVersion', `expected ${SCHEMA_VERSION}, got ${String(root['schemaVersion'])}`);
     }
-    const year = c.int('$.year', root['year']);
-    const county = c.str('$.county', root['county']);
+    const year = checkYear(c, '$.year', root['year']);
+    const county = checkCounty(c, '$.county', root['county']);
     checkIsoTimestamp(c, '$.generatedAt', root['generatedAt']);
 
     const provenance = root['provenance'];
@@ -376,8 +385,8 @@ export function assertDatasetIndex(value: unknown, what = 'dataset index'): Data
         const path = `$.datasets[${i}]`;
         const rec = c.record(path, entry);
         if (!rec) return;
-        const year = c.int(`${path}.year`, rec['year']);
-        const county = c.str(`${path}.county`, rec['county']);
+        const year = checkYear(c, `${path}.year`, rec['year']);
+        const county = checkCounty(c, `${path}.county`, rec['county']);
         const p = c.str(`${path}.path`, rec['path']);
         c.int(`${path}.rowCount`, rec['rowCount'], { min: 0 });
         if (!isProvenance(rec['provenance'])) {

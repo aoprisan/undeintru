@@ -41,8 +41,9 @@ async function listNormalized(dir: string): Promise<{ year: number; file: string
   let years: string[];
   try {
     years = await readdir(dir);
-  } catch {
-    return [];
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return [];
+    throw error;
   }
 
   const out: { year: number; file: string }[] = [];
@@ -50,12 +51,9 @@ async function listNormalized(dir: string): Promise<{ year: number; file: string
     const year = Number(name);
     if (!Number.isInteger(year)) continue;
     const yearDir = join(dir, name);
-    let files: string[];
-    try {
-      files = await readdir(yearDir);
-    } catch {
-      continue;
-    }
+    // A discovered year must be readable: skipping it would delete its
+    // previously published data when the complete generation is installed.
+    const files = await readdir(yearDir);
     for (const f of files.filter((f) => f.endsWith('.json')).sort()) {
       out.push({ year, file: join(yearDir, f) });
     }
